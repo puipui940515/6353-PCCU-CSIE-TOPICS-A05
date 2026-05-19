@@ -1,0 +1,35 @@
+# SAC 訓練超參數與網路結構(對應 docs/agents/domain.md §8)
+#
+# 修改後重跑:
+#   python ~/dobot_project/training/train_sac.py --config ~/dobot_project/configs/sac.yaml
+
+# ---- 神經網路 ----
+network:
+  # 中間層神經元數(共用給 actor 與 critic)
+  # 範例:[256, 256] 兩層各 256 個;[64, 128, 64] 三層
+  hidden_layers: [256, 256, 128]
+  # 激活函數:relu / tanh / elu / gelu
+  activation: relu
+  # LayerNorm:在 features extractor 後加,穩定 SAC critic(預設 true)
+  # 不提供 dropout / resnet(對小規模 SAC 反指標,見 sac_policy.py 註解)
+  layer_norm: true
+
+# ---- SAC 超參數 ----
+sac:
+  learning_rate: 3.0e-4
+  buffer_size: 300000
+  batch_size: 256
+  gamma: 0.99
+  tau: 0.005
+  train_freq: 1
+  gradient_steps: 1
+  learning_starts: 10000     # 前 10k 步純隨機填 buffer
+  ent_coef: auto             # 自動學習;改成數字(例如 0.1)可固定
+
+# ---- 訓練排程 ----
+schedule:
+  total_steps: 500000
+  n_envs: 32
+  checkpoint_every: 20000
+  eval_every: 10000
+  seed: 42

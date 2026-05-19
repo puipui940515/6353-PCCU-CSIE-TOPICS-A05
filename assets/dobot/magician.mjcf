@@ -1,0 +1,27 @@
+<mujoco model="dobot_magician">
+  <!-- 主結構:從 URDF 載入 -->
+  <include file="magician.urdf"/>
+
+  <!-- 處理 mimic:用 equality constraint 約束 mimic_1 = -joint_2 -->
+  <equality>
+    <joint joint1="magician_joint_mimic_1" joint2="magician_joint_2" 
+           polycoef="0 -1 0 0 0"/>
+    <joint joint1="magician_joint_mimic_2" joint2="magician_joint_3" 
+           polycoef="0 -1 0 0 0"/>
+  </equality>
+
+  <!-- 加 actuator,讓 joint 可被控制 -->
+  <actuator>
+    <position joint="magician_joint_1" kp="100"/>
+    <position joint="magician_joint_2" kp="100"/>
+    <position joint="magician_joint_3" kp="100"/>
+    <position joint="magician_joint_4" kp="100"/>
+    <!-- gripper 用一個 actuator 同時控制兩片 jaw,之後處理 -->
+  </actuator>
+
+  <!-- 加地板 -->
+  <worldbody>
+    <geom name="floor" type="plane" size="2 2 0.1" rgba="0.7 0.7 0.7 1"/>
+    <light pos="0 0 3" dir="0 0 -1"/>
+  </worldbody>
+</mujoco>

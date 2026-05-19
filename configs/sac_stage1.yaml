@@ -1,0 +1,43 @@
+# Stage 1:末端對準方塊(mocap-like,無重力)
+# 通關標準:eval success rate > 80%
+#
+# 執行:
+#   python ~/dobot_project/training/train_sac.py --config ~/dobot_project/configs/sac_stage1.yaml
+
+stage: 1
+
+# ---- 神經網路(全 stage 共用)----
+network:
+  hidden_layers: [256, 256, 128]
+  activation: relu
+  layer_norm: true
+
+# ---- SAC 超參數 ----
+sac:
+  learning_rate: 3.0e-4
+  buffer_size: 300000
+  batch_size: 256
+  gamma: 0.99
+  tau: 0.005
+  train_freq: 1
+  gradient_steps: 1
+  learning_starts: 10000
+  ent_coef: auto
+
+# ---- 訓練排程 ----
+schedule:
+  total_steps: 500000
+  n_envs: 32
+  checkpoint_every: 20000
+  eval_every: 10000
+  seed: 42
+
+# ---- Reward 權重覆寫(未列出者用 env 預設值)----
+reward_weights:
+  W_HORIZONTAL: 2.0
+  W_VERTICAL: 1.0
+  W_PROGRESS: 5.0
+  W_ACTION_SMOOTH: 0.001
+  W_TIME: 0.01
+  R_TIMEOUT: -1.0
+  R_SUCCESS_ALIGN: 5.0

@@ -1,0 +1,44 @@
+# Stage 3:抓起 + 握住(freejoint + 重力)
+# 通關標準:eval success rate > 60%
+#
+# 從 stage 2 best 開始:
+#   python ~/dobot_project/training/train_sac.py \
+#       --config ~/dobot_project/configs/sac_stage3.yaml \
+#       --resume ~/dobot_project/runs/sac_stage2_<timestamp>/best/best_model.zip
+
+stage: 3
+
+network:
+  hidden_layers: [256, 256, 128]
+  activation: relu
+  layer_norm: true
+
+sac:
+  learning_rate: 1.0e-4      # 重力引入後 dynamics 變化大,降 lr 避免崩
+  buffer_size: 500000        # 加大 buffer,因為任務更難
+  batch_size: 256
+  gamma: 0.99
+  tau: 0.005
+  train_freq: 1
+  gradient_steps: 1
+  learning_starts: 5000
+  ent_coef: auto
+
+schedule:
+  total_steps: 1000000       # 任務變難,加長
+  n_envs: 32
+  checkpoint_every: 25000
+  eval_every: 10000
+  seed: 42
+
+reward_weights:
+  W_HORIZONTAL: 2.0
+  W_VERTICAL: 1.0
+  W_PROGRESS: 5.0
+  W_ACTION_SMOOTH: 0.001
+  W_TIME: 0.01
+  R_TIMEOUT: -1.0
+  W_GRIPPER_CLOSE: 0.1
+  GRIPPER_SHAPING_RADIUS: 0.05
+  R_SUCCESS_LIFT: 10.0
+  W_HOLDING: 0.05

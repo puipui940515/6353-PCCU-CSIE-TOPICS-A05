@@ -1,0 +1,40 @@
+# Dobot Magician 聲波震動定位專題 · Python 依賴
+# 對應 docs/agents/domain.md §6 (模擬選型)、deployment.md §1.1
+#
+# 安裝方式:
+#   python3.10 -m venv .venv
+#   source .venv/bin/activate
+#   pip install -U pip wheel
+#   pip install -r requirements.txt
+
+# ---- 物理模擬 ----
+mujoco>=3.1
+
+# ---- RL 框架 ----
+gymnasium>=0.29
+stable-baselines3>=2.3
+
+# ---- 深度學習(CUDA 12.x wheel,4060 用)----
+# 註:torch 的 CUDA wheel 建議用官方 index 安裝:
+#   pip install torch --index-url https://download.pytorch.org/whl/cu121
+# 這裡只列名稱,讓 pip 找預設 wheel
+torch>=2.2
+
+# ---- 聲學模擬 ----
+pyroomacoustics>=0.7
+sounddevice
+
+# ---- 數值與工具 ----
+numpy<2.0
+scipy
+pyyaml
+
+# ---- 訓練監控 ----
+tensorboard
+wandb
+
+# ---- 運動規劃(MoveIt2 Python binding,Phase 1 訓練迴圈用)----
+# 註:moveit_py 透過 apt 安裝會更穩定:
+#   sudo apt install ros-humble-moveit-py
+# pip wheel 在 Humble 上可能不穩,優先用 apt
+# 此處不列入 pip 安裝清單,改在 setup_instructions.md 用 apt 處理

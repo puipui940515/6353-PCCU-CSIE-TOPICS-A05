@@ -1,0 +1,57 @@
+# Stage 5:形狀泛化(球 / 方塊 / 多邊形)
+# 通關標準:eval success rate > 40%(均值)
+#
+# 注意:env 尚未實作物體形狀切換,本 config 暫時等同 stage 4。
+# 待 build_scene.py 加入多形狀 body + env 加入物體切換邏輯後啟用。
+#
+# 從 stage 4 best 開始:
+#   python ~/dobot_project/training/train_sac.py \
+#       --config ~/dobot_project/configs/sac_stage5.yaml \
+#       --resume ~/dobot_project/runs/sac_stage4_<timestamp>/best/best_model.zip
+
+stage: 5
+
+network:
+  hidden_layers: [256, 256, 128]
+  activation: relu
+  layer_norm: true
+
+sac:
+  learning_rate: 5.0e-5      # 形狀變化是 distribution shift,更謹慎降 lr
+  buffer_size: 500000
+  batch_size: 256
+  gamma: 0.99
+  tau: 0.005
+  train_freq: 1
+  gradient_steps: 1
+  learning_starts: 5000
+  ent_coef: auto
+
+schedule:
+  total_steps: 2000000
+  n_envs: 32
+  checkpoint_every: 50000
+  eval_every: 20000
+  seed: 42
+
+reward_weights:
+  W_HORIZONTAL: 2.0
+  W_VERTICAL: 1.0
+  W_PROGRESS: 5.0
+  W_ACTION_SMOOTH: 0.001
+  W_TIME: 0.01
+  R_TIMEOUT: -1.0
+  W_GRIPPER_CLOSE: 0.1
+  GRIPPER_SHAPING_RADIUS: 0.05
+  R_SUCCESS_LIFT: 10.0
+  W_HOLDING: 0.05
+  W_DIST_TO_TARGET: 2.0
+  R_SUCCESS_PLACE: 20.0
+  R_SUCCESS_RELEASE: 20.0
+
+# 形狀混合(stage 5 用,先 4a 球、4b 多邊形、4c 混合)
+# 目前 env 未實作,先列出參數結構供未來填入
+shape_mix:
+  enabled: false             # 切到 true 啟用形狀混合
+  shapes: ["box", "sphere", "cylinder"]
+  weights: [1.0, 1.0, 1.0]   # 採樣權重

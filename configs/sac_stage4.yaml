@@ -1,0 +1,47 @@
+# Stage 4:放置到綠色目標區(順序狀態機:抓起 → 放下到目標區 → 放手)
+# 通關標準:eval success rate > 50%
+#
+# 從 stage 3 best 開始:
+#   python ~/dobot_project/training/train_sac.py \
+#       --config ~/dobot_project/configs/sac_stage4.yaml \
+#       --resume ~/dobot_project/runs/sac_stage3_<timestamp>/best/best_model.zip
+
+stage: 4
+
+network:
+  hidden_layers: [256, 256, 128]
+  activation: relu
+  layer_norm: true
+
+sac:
+  learning_rate: 1.0e-4
+  buffer_size: 500000
+  batch_size: 256
+  gamma: 0.99
+  tau: 0.005
+  train_freq: 1
+  gradient_steps: 1
+  learning_starts: 5000
+  ent_coef: auto
+
+schedule:
+  total_steps: 1500000       # 多步任務,加長
+  n_envs: 32
+  checkpoint_every: 30000
+  eval_every: 15000
+  seed: 42
+
+reward_weights:
+  W_HORIZONTAL: 2.0
+  W_VERTICAL: 1.0
+  W_PROGRESS: 5.0
+  W_ACTION_SMOOTH: 0.001
+  W_TIME: 0.01
+  R_TIMEOUT: -1.0
+  W_GRIPPER_CLOSE: 0.1
+  GRIPPER_SHAPING_RADIUS: 0.05
+  R_SUCCESS_LIFT: 10.0
+  W_HOLDING: 0.05
+  W_DIST_TO_TARGET: 2.0
+  R_SUCCESS_PLACE: 20.0
+  R_SUCCESS_RELEASE: 20.0

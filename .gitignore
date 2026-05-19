@@ -1,0 +1,25 @@
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+runs/
+data/demos/
+data/real_bags/
+data/real_transitions/
+*.pkl
+*.zip
+*.pt
+*.pth
+.vscode/
+.idea/
+.DS_Store
+*.log
+
+# ROS 2 colcon build artifacts
+ros2_ws/build/
+ros2_ws/install/
+ros2_ws/log/
+
+# Mesh source files (DAE 原檔,留 OBJ 就好)
+assets/dobot/meshes/visual/*.dae

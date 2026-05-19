@@ -1,0 +1,43 @@
+# Stage 2:抓取方塊(夾爪閉合,mocap-like,無重力)
+# 通關標準:eval success rate > 70%
+#
+# 從 stage 1 best 開始:
+#   python ~/dobot_project/training/train_sac.py \
+#       --config ~/dobot_project/configs/sac_stage2.yaml \
+#       --resume ~/dobot_project/runs/sac_stage1_<timestamp>/best/best_model.zip
+
+stage: 2
+
+network:
+  hidden_layers: [256, 256, 128]
+  activation: relu
+  layer_norm: true
+
+sac:
+  learning_rate: 3.0e-4
+  buffer_size: 300000
+  batch_size: 256
+  gamma: 0.99
+  tau: 0.005
+  train_freq: 1
+  gradient_steps: 1
+  learning_starts: 5000      # 從 BC 暖機後的權重接,不用太多隨機
+  ent_coef: auto
+
+schedule:
+  total_steps: 500000
+  n_envs: 32
+  checkpoint_every: 20000
+  eval_every: 10000
+  seed: 42
+
+reward_weights:
+  W_HORIZONTAL: 2.0
+  W_VERTICAL: 1.0
+  W_PROGRESS: 5.0
+  W_ACTION_SMOOTH: 0.001
+  W_TIME: 0.01
+  R_TIMEOUT: -1.0
+  W_GRIPPER_CLOSE: 0.1
+  GRIPPER_SHAPING_RADIUS: 0.05
+  R_SUCCESS_GRASP: 10.0
