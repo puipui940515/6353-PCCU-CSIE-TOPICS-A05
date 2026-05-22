@@ -1,0 +1,90 @@
+"""定位關卡 Env + 「發射命中」驗證器
+
+關卡邏輯:
+  1. 方塊隨機放在工作空間 → 真值方位角已知
+  2. 合成多通道超聲接收 → 階段1特徵
+  3. 模型預測方位 → 「朝該方位發射」
+  4. 命中判定:預測方位 vs 真值方位 夾角 < threshold
+
+兩種驗證:
+  - 主指標:直接讀方塊真值算角度誤差(準、你說的備用其實該當主)
+  - Demo:「發射命中」二元判定(可視化用)
+
+⚠️ 這是獨立的定位預訓練關卡,不覆寫 domain.md §4.2 主 action space。
+"""
+
+from __future__ import annotations
+import numpy as np
+
+from config import LocalizationConfig, DEFAULT
+import signal_processing as sp
+
+
+def sample_block_position(cfg: LocalizationConfig, rng: np.random.Generator) -> np.ndarray:
+    """在工作空間內隨機放方塊,回傳 (x, y, z)。"""
+    t = cfg.task
+    r = rng.uniform(*t.workspace_r_range)
+    az = rng.uniform(0, 2 * np.pi)
+    z = rng.uniform(*t.workspace_z_range)
+    return np.array([r * np.cos(az), r * np.sin(az), z], dtype=np.float32)
+
+
+def true_azimuth_deg(source_xyz: np.ndarray) -> float:
+    """方塊相對陣列中心的真值方位角(度,0-360)。"""
+    az = np.degrees(np.arctan2(source_xyz[1], source_xyz[0]))
+    return az % 360.0
+
+
+def angular_error_deg(pred_deg: float, true_deg: float) -> float:
+    """環形角度誤差(度),範圍 [0, 180]。"""
+    d = abs(pred_deg - true_deg) % 360.0
+    return min(d, 360.0 - d)
+
+
+class LocalizationEnv:
+    """定位關卡。一個 step = 放一次方塊 + 收音 + 出特徵。"""
+
+    def __init__(self, cfg: LocalizationConfig = DEFAULT, seed: int = 0,
+                 use_v2: bool = False, v2_opts: dict | None = None) -> None:
+        self.cfg = cfg
+        self.rng = np.random.default_rng(seed)
+        self._last_source = None
+        self._last_meta = None
+        self.use_v2 = use_v2
+        self.v2_opts = v2_opts or {}
+
+    def sample(self) -> tuple[np.ndarray, float, dict]:
+        """產生一個樣本。回傳 (feature, true_azimuth_deg, meta)。"""
+        src = sample_block_position(self.cfg, self.rng)
+        raw, meta = sp.synthesize_reception(self.cfg, src, self.rng)
+        filt = sp.bandpass(self.cfg, raw)
+        if self.use_v2:
+            feat = sp.extract_features_v2(self.cfg, filt, **self.v2_opts)
+        else:
+            feat = sp.extract_features(self.cfg, filt)
+        self._last_source = src
+        self._last_meta = meta
+        true_az = true_azimuth_deg(src)
+        meta["source_xyz"] = src.tolist()
+        return feat, true_az, meta
+
+    def is_hit(self, pred_az_deg: float, true_az_deg: float) -> bool:
+        """「發射命中」判定。"""
+        return angular_error_deg(pred_az_deg, true_az_deg) < self.cfg.task.hit_threshold_deg
+
+
+def az_to_bin(az_deg: float, n_bins: int) -> int:
+    """真值方位角 → bin index(訓練 label 用)。"""
+    return int((az_deg % 360.0) / (360.0 / n_bins)) % n_bins
+
+
+if __name__ == "__main__":
+    env = LocalizationEnv(seed=0)
+    feat, true_az, meta = env.sample()
+    print(f"feature shape  = {feat.shape}")
+    print(f"true azimuth   = {true_az:.1f}°")
+    print(f"source xyz     = {meta['source_xyz']}")
+    print(f"signal type    = {meta['type']}, f0={meta['f0']:.0f}Hz, SNR={meta['snr_db']:.1f}dB")
+    # 假裝預測差 3° → 應命中
+    print(f"hit (pred+3°)  = {env.is_hit(true_az + 3, true_az)}  (期望 True)")
+    print(f"hit (pred+10°) = {env.is_hit(true_az + 10, true_az)}  (期望 False)")
