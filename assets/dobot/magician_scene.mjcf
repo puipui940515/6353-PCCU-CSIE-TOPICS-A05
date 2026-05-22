@@ -37,6 +37,12 @@
               <body name="magician_link_gripper_core" pos="0.06 0 0">
                 <joint name="magician_joint_4" pos="0 0 0" axis="0 0 1" range="-2.61799 2.61799" actuatorfrcrange="-2000 2000"/>
                 <geom pos="-8.06784e-05 0 -0.0278434" type="mesh" contype="2" mesh="gripper_core"/>
+                <site name="mic0" pos="0 0 0"/>
+                <site name="mic1" pos="0.004 0 0"/>
+                <site name="mic2" pos="0.012 0 0"/>
+                <site name="mic3" pos="0.028 0 0"/>
+                <site name="mic4" pos="0 0.012 0"/>
+                <site name="mic5" pos="0 -0.012 0"/>
                 <body name="magician_link_gripper_jaw_left">
                   <joint name="magician_joint_prismatic_l" pos="0 0 0" axis="0 1 0" type="slide" range="0 0.0135" actuatorfrcrange="-2000 2000"/>
                   <geom pos="-8.06784e-05 -0.0009 -0.0278434" quat="1 0 0 0" type="mesh" contype="2" mesh="jaw_left"/>
@@ -51,12 +57,9 @@
         </body>
       </body>
     </body>
-    <body name="test_block" pos="0.2 0 -0.106">
+    <body name="test_block" pos="0.2 0 -0.111">
       <joint name="test_block_freejoint" type="free"/>
-      <geom name="test_block_geom" size="0.01 0.01 0.01" type="box" conaffinity="3" mass="0.05" rgba="0.9 0.3 0.3 1"/>
-    </body>
-    <body name="target_zone" pos="0.2 0.1 -0.13" mocap="true">
-      <inertial pos="0 0 0" mass="0.0064" diaginertia="3.41387e-06 3.41387e-06 6.82667e-06"/>
+      <geom name="test_block_geom" size="0.02 0.02 0.02" type="box" conaffinity="3" mass="0.05" rgba="0.9 0.3 0.3 1"/>
     </body>
   </worldbody>
 
@@ -64,11 +67,10 @@
     <joint name="parallel_link_1" joint1="magician_joint_mimic_1" joint2="magician_joint_2" polycoef="0 -1 0 0 0" solref="0.001" solimp="0.99 0.999"/>
     <joint name="parallel_link_2" joint1="magician_joint_mimic_2" joint2="magician_joint_3" polycoef="0 -1 0 0 0" solref="0.001" solimp="0.99 0.999"/>
     <joint name="gripper_sync" joint1="magician_joint_prismatic_r" joint2="magician_joint_prismatic_l" polycoef="0 -1 0 0 0" solref="0.001" solimp="0.99 0.999"/>
-    <weld name="block_weld" body1="test_block" body2="world" anchor="0 0 0" relpose="0 0 0 1 0 0 0" torquescale="1" active="false"/>
   </equality>
 
   <actuator>
-    <general name="act_joint_1" joint="magician_joint_1" ctrllimited="true" ctrlrange="-2.0944 2.0944" biastype="affine" gainprm="50" biasprm="0 -50 -10"/>
+    <general name="act_joint_1" joint="magician_joint_1" ctrllimited="true" ctrlrange="-2.0944 2.0944" biastype="affine" gainprm="300" biasprm="0 -300 -60"/>
     <general name="act_joint_2" joint="magician_joint_2" ctrllimited="true" ctrlrange="0 1.4835" biastype="affine" gainprm="50" biasprm="0 -50 -10"/>
     <general name="act_joint_3" joint="magician_joint_3" ctrllimited="true" ctrlrange="-0.2618 1.2217" biastype="affine" gainprm="50" biasprm="0 -50 -10"/>
     <general name="act_joint_4" joint="magician_joint_4" ctrllimited="true" ctrlrange="-1.5708 1.5708" biastype="affine" gainprm="20" biasprm="0 -20 -4"/>
