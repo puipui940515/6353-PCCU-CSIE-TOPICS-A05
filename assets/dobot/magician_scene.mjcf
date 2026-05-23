@@ -57,9 +57,12 @@
         </body>
       </body>
     </body>
-    <body name="test_block" pos="0.2 0 -0.111">
+    <body name="test_block" pos="0.2 0 -0.126">
       <joint name="test_block_freejoint" type="free"/>
-      <geom name="test_block_geom" size="0.02 0.02 0.02" type="box" conaffinity="3" mass="0.05" rgba="0.9 0.3 0.3 1"/>
+      <geom name="test_block_geom" size="0.005 0.005 0.005" type="box" conaffinity="3" mass="0.05" rgba="0.9 0.3 0.3 1"/>
+    </body>
+    <body name="target_zone" pos="5 5 -0.131" mocap="true">
+      <inertial pos="0 0 0" mass="0.00565487" diaginertia="1.27423e-06 1.27423e-06 2.54469e-06"/>
     </body>
   </worldbody>
 
@@ -67,6 +70,7 @@
     <joint name="parallel_link_1" joint1="magician_joint_mimic_1" joint2="magician_joint_2" polycoef="0 -1 0 0 0" solref="0.001" solimp="0.99 0.999"/>
     <joint name="parallel_link_2" joint1="magician_joint_mimic_2" joint2="magician_joint_3" polycoef="0 -1 0 0 0" solref="0.001" solimp="0.99 0.999"/>
     <joint name="gripper_sync" joint1="magician_joint_prismatic_r" joint2="magician_joint_prismatic_l" polycoef="0 -1 0 0 0" solref="0.001" solimp="0.99 0.999"/>
+    <weld name="block_weld" body1="test_block" anchor="0 1 0" relpose="0 0 0 1 0 0 0" torquescale="1" active="false"/>
   </equality>
 
   <actuator>

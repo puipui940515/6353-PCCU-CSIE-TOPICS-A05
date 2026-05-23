@@ -1,4 +1,4 @@
-"""建立完整 MuJoCo 場景:URDF + mimic 約束 + actuator + 地板 + 方塊
+"""建立完整 MuJoCo 場景:URDF + mimic 約束 + actuator + 地板 + 方塊 + 目標區
 
 執行:
     cd ~/dobot_project/assets/dobot
@@ -16,6 +16,11 @@ Collision group 設定(避免 self-collision 同時讓方塊接觸地板):
     → 跟機械臂(conaffinity=1)會碰,跟同類(conaffinity=2 only)不會
   - 方塊: contype=1, conaffinity=3 (= 0b11)
     → 跟機械臂(2 & 3 != 0)會碰,跟地板(1 & 3 != 0)會碰
+
+env 依賴項(mujoco_dobot_env.py 啟動會檢查,缺則 raise):
+  - test_block (freejoint)      : 方塊本體
+  - target_zone (mocap body)    : stage 4-5 目標投放區,位置由 data.mocap_pos 控制
+  - block_weld (WELD equality)  : stage 1-2 把方塊焊在空中,env reset 控制 active/位置
 """
 
 from pathlib import Path
@@ -31,9 +36,10 @@ except ImportError:
 
 # ---- 場景常數 ----
 FLOOR_Z = -0.131            # 對應實際機械臂底部 -0.131 + 1mm 容差
-BLOCK_HALF_SIZE = 0.02
-BLOCK_Z = FLOOR_Z + BLOCK_HALF_SIZE   # 方塊中心 = -0.174,底部貼地板
+BLOCK_HALF_SIZE = 0.005     # 邊長 10mm,< 夾爪最大開度 13.5mm,必須與 env 的 BLOCK_HALF_SIZE 一致
+BLOCK_Z = FLOOR_Z + BLOCK_HALF_SIZE   # 方塊中心 = -0.126,底部貼地板
 BLOCK_XY = (0.2, 0.0)         # 預設位置(env reset 會覆寫)
+TARGET_MARKER_RADIUS = 0.03   # 目標區視覺標記半徑
 
 # ---- Collision groups ----
 ARM_CONTYPE = 2
@@ -115,8 +121,8 @@ def main() -> None:
     for name, pos in mic_positions:
         end_body.add_site(name=name, pos=pos)
         print(f"  ✅ {name} @ {pos}")
-    
-    # ---- Equality constraints ----
+
+    # ---- Equality constraints(mimic)----
     print("加 equality constraints (處理 mimic)...")
     for eq_name, j1, j2, mult in MIMIC_PAIRS:
         eq = spec.add_equality()
@@ -192,6 +198,35 @@ def main() -> None:
     print(f"  ✅ 地板 (contype={FLOOR_CONTYPE}, conaffinity={FLOOR_CONAFFINITY})")
     print(f"  ✅ 方塊 (contype={BLOCK_CONTYPE}, conaffinity={BLOCK_CONAFFINITY})")
 
+    # ---- 目標投放區(mocap body)----
+    # env line 157-162 要求 target_zone 必須是 mocap body(位置由 data.mocap_pos 控制)。
+    # 純視覺標記,不參與碰撞(contype=conaffinity=0)。預設藏遠處,env reset 會設位置。
+    target = wb.add_body(name="target_zone", mocap=True, pos=[5.0, 5.0, FLOOR_Z])
+    target_geom = target.add_geom(
+        name="target_zone_geom",
+        type=mujoco.mjtGeom.mjGEOM_CYLINDER,
+        size=[TARGET_MARKER_RADIUS, 0.001, 0.0],
+        rgba=[0.2, 0.8, 0.2, 0.4],
+    )
+    target_geom.contype = 0
+    target_geom.conaffinity = 0
+    print("  ✅ target_zone (mocap body, 非碰撞綠色標記)")
+
+    # ---- block_weld(WELD equality)----
+    # env line 165-169 要求名為 block_weld 的 weld eq。
+    # 把 test_block 焊到 world;預設 inactive,env reset 依 stage(1-2 啟用)控制 active 與焊接座標。
+    # eq_data layout 由 env reset 覆寫(world anchor / block anchor / quat / torquescale)。
+    weld = spec.add_equality()
+    weld.name = "block_weld"
+    weld.type = mujoco.mjtEq.mjEQ_WELD
+    weld.objtype = mujoco.mjtObj.mjOBJ_BODY
+    weld.name1 = "test_block"
+    weld.name2 = ""                  # 焊到 world
+    weld.active = False              # 預設關閉,env 依 stage 開
+    weld.data[6:10] = [1, 0, 0, 0]   # identity quat 預設(env reset 會覆寫)
+    weld.data[10] = 1.0              # torquescale 預設
+    print("  ✅ block_weld (WELD eq, 預設 inactive)")
+
     # ---- 編譯驗證 ----
     print("編譯驗證...")
     try:
@@ -217,7 +252,7 @@ def main() -> None:
     lowest = float('inf')
     for i in range(m.ngeom):
         name = mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_GEOM, i)
-        if name in ("floor", "test_block_geom"):
+        if name in ("floor", "test_block_geom", "target_zone_geom"):
             continue
         if m.geom_type[i] != 7:  # box
             continue
@@ -241,7 +276,17 @@ def main() -> None:
     for i, name in enumerate(["mic0","mic1","mic2","mic3","mic4","mic5"]):
         sid = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_SITE, name)
         print(f"    {name}: {d.site_xpos[sid]}")
-    
+
+    # 驗證 env 依賴項(缺則 env 啟動會 raise)
+    tz = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_BODY, "target_zone")
+    tz_mocap = int(m.body_mocapid[tz]) if tz >= 0 else -1
+    bw = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_EQUALITY, "block_weld")
+    print(f"  ✅ target_zone mocapid = {tz_mocap}(需 ≥ 0)")
+    print(f"  ✅ block_weld eq id = {bw}(需 ≥ 0)")
+    if tz_mocap < 0 or bw < 0:
+        print("  ❌ env 依賴項缺失,eval/train 會 raise")
+        sys.exit(1)
+
     # ---- 匯出 ----
     mjcf_str = spec.to_xml()
     out_path.write_text(mjcf_str)

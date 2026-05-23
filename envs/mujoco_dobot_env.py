@@ -58,9 +58,8 @@ GRIPPER_MAX_OPEN = 0.0135
 # 各 stage config (configs/sac_stageN.yaml) 可覆寫
 # ============================================================
 DEFAULT_REWARD_WEIGHTS = {
-    # 通用
-    "W_HORIZONTAL": 2.0,
-    "W_VERTICAL": 1.0,
+    # 通用(W_HORIZONTAL/W_VERTICAL 已合併為 W_DISTANCE:直線歐氏距離,各方向等權)
+    "W_DISTANCE": 1.5,
     "W_PROGRESS": 5.0,
     "W_ACTION_SMOOTH": 0.001,
     "W_TIME": 0.01,
@@ -71,9 +70,10 @@ DEFAULT_REWARD_WEIGHTS = {
     "W_GRIPPER_CLOSE": 0.1,
     "GRIPPER_SHAPING_RADIUS": 0.05,
     "R_SUCCESS_GRASP": 10.0,
-    # Stage 3
+    # Stage 3(W_LIFT_HEIGHT:potential-based,只在握住時獎勵抬升、懲罰下降,握平穩為 0)
     "R_SUCCESS_LIFT": 10.0,
     "W_HOLDING": 0.05,
+    "W_LIFT_HEIGHT": 2.0,
     # Stage 4
     "W_DIST_TO_TARGET": 2.0,
     "R_SUCCESS_PLACE": 20.0,
@@ -181,6 +181,7 @@ class MuJoCoDobotEnv(BaseDobotEnv):
 
         self._last_action = np.zeros(ACTION_DIM, dtype=np.float32)
         self._prev_distance = None
+        self._prev_block_height = None
 
         # Stage 3+ 用:首次抓起與 stage 4 狀態機
         self._has_lifted = False
@@ -257,6 +258,7 @@ class MuJoCoDobotEnv(BaseDobotEnv):
         self.current_step = 0
         self._last_action[:] = 0
         self._prev_distance = None
+        self._prev_block_height = None
         self._has_lifted = False
         self._task_state = TASK_STATE_INITIAL
         self._block_xyz = block_xyz.copy()
@@ -403,11 +405,9 @@ class MuJoCoDobotEnv(BaseDobotEnv):
     def _reward_stage1(self, action: np.ndarray) -> tuple[float, bool, dict]:
         tcp_xyz = self.data.xpos[self._tcp_body_id]
         block_xyz = self.data.xpos[self._block_body_id]
-        h_d = float(np.linalg.norm(tcp_xyz[:2] - block_xyz[:2]))
-        v_d = float(abs(tcp_xyz[2] - block_xyz[2]))
         distance = float(np.linalg.norm(tcp_xyz - block_xyz))
 
-        reward = -self.w["W_HORIZONTAL"] * h_d - self.w["W_VERTICAL"] * v_d
+        reward = -self.w["W_DISTANCE"] * distance
         if self._prev_distance is not None:
             reward += self.w["W_PROGRESS"] * (self._prev_distance - distance)
         self._prev_distance = distance
@@ -425,11 +425,9 @@ class MuJoCoDobotEnv(BaseDobotEnv):
     def _reward_stage2(self, action: np.ndarray) -> tuple[float, bool, dict]:
         tcp_xyz = self.data.xpos[self._tcp_body_id]
         block_xyz = self.data.xpos[self._block_body_id]
-        h_d = float(np.linalg.norm(tcp_xyz[:2] - block_xyz[:2]))
-        v_d = float(abs(tcp_xyz[2] - block_xyz[2]))
         distance = float(np.linalg.norm(tcp_xyz - block_xyz))
 
-        reward = -self.w["W_HORIZONTAL"] * h_d - self.w["W_VERTICAL"] * v_d
+        reward = -self.w["W_DISTANCE"] * distance
         if self._prev_distance is not None:
             reward += self.w["W_PROGRESS"] * (self._prev_distance - distance)
         self._prev_distance = distance
@@ -453,11 +451,9 @@ class MuJoCoDobotEnv(BaseDobotEnv):
     def _reward_stage3(self, action: np.ndarray) -> tuple[float, bool, dict]:
         tcp_xyz = self.data.xpos[self._tcp_body_id]
         block_xyz = self.data.xpos[self._block_body_id]
-        h_d = float(np.linalg.norm(tcp_xyz[:2] - block_xyz[:2]))
-        v_d = float(abs(tcp_xyz[2] - block_xyz[2]))
         distance = float(np.linalg.norm(tcp_xyz - block_xyz))
 
-        reward = -self.w["W_HORIZONTAL"] * h_d - self.w["W_VERTICAL"] * v_d
+        reward = -self.w["W_DISTANCE"] * distance
         if self._prev_distance is not None:
             reward += self.w["W_PROGRESS"] * (self._prev_distance - distance)
         self._prev_distance = distance
@@ -478,9 +474,14 @@ class MuJoCoDobotEnv(BaseDobotEnv):
             reward += self.w["R_SUCCESS_LIFT"]
             self._has_lifted = True
 
-        # 持續握持獎勵
+        # 持續握持獎勵 + potential-based 抬升(獎勵抬高、懲罰下降,握平穩時為 0)
         if is_holding:
             reward += self.w["W_HOLDING"]
+            if self._prev_block_height is not None:
+                reward += self.w["W_LIFT_HEIGHT"] * (block_height_above_floor - self._prev_block_height)
+            self._prev_block_height = block_height_above_floor
+        else:
+            self._prev_block_height = None
 
         reward -= self.w["W_ACTION_SMOOTH"] * float(np.sum((action - self._last_action) ** 2))
         reward -= self.w["W_TIME"]
@@ -503,15 +504,13 @@ class MuJoCoDobotEnv(BaseDobotEnv):
         block_xyz = self.data.xpos[self._block_body_id]
         target_xyz = self._target_xyz
 
-        h_d = float(np.linalg.norm(tcp_xyz[:2] - block_xyz[:2]))
-        v_d = float(abs(tcp_xyz[2] - block_xyz[2]))
         distance_tcp_block = float(np.linalg.norm(tcp_xyz - block_xyz))
         distance_block_target_xy = float(np.linalg.norm(block_xyz[:2] - target_xyz[:2]))
 
         # Phase A:還沒抓起 → 鼓勵靠近方塊(同 stage 2/3 shaping)
         # Phase B:已抓起 → 鼓勵把方塊靠近目標區
         if self._task_state == TASK_STATE_INITIAL:
-            reward = -self.w["W_HORIZONTAL"] * h_d - self.w["W_VERTICAL"] * v_d
+            reward = -self.w["W_DISTANCE"] * distance_tcp_block
             shaping_target = distance_tcp_block
         else:
             # 已抓起後:shaping 換成方塊→目標區距離
