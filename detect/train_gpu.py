@@ -37,13 +37,28 @@ def load_npz(path: str, device):
         range_labels = torch.tensor(d["range_labels"], dtype=torch.long, device=device)
     else:
         range_labels = None
-    return feats, labels, range_labels
+    # sig_types:分 signal_type 診斷用(字串陣列,留在 CPU);無則回 None
+    sig_types = d["sig_types"] if "sig_types" in d else None
+    return feats, labels, range_labels, sig_types
 
 
-def evaluate(feats, labels, range_labels, net, cfg) -> dict:
+def evaluate(feats, labels, range_labels, net, cfg, sig_types=None,
+             breakdown: bool = False, n_sectors: int = 8) -> dict:
+    """評估定位網路。
+
+    Args:
+        breakdown: True 時額外計算分象限 / 分 signal_type 命中率(放進 m["sectors"]、
+                   m["by_sig"]),供診斷用。訓練迴圈每步評估設 False(省開銷),
+                   最終評估設 True。
+        n_sectors: 方位分扇區數(預設 8 = 每 45°)。
+
+    回傳 dict:整體 hit_rate / mean_err_deg(+ range_hit_rate),
+    breakdown=True 時另含 sectors / by_sig 兩張表(list[dict])。
+    """
     net.eval()
     n_bins = cfg.task.n_azimuth_bins
     deg_per_bin = 360.0 / n_bins
+    hit_thresh = cfg.task.hit_threshold_deg
     with torch.no_grad():
         out = net(feats)
         az_logits = out[0] if isinstance(out, tuple) else out
@@ -52,17 +67,91 @@ def evaluate(feats, labels, range_labels, net, cfg) -> dict:
         true_deg = labels.float() * deg_per_bin
         err = torch.abs(pred_deg - true_deg) % 360
         err = torch.minimum(err, 360 - err)
-        hit_rate = (err < cfg.task.hit_threshold_deg).float().mean().item()
+        hit = (err < hit_thresh)
+        hit_rate = hit.float().mean().item()
         mean_err = err.mean().item()
         m = {"hit_rate": hit_rate, "mean_err_deg": mean_err}
+
         # 距離 head go/no-go 指標:4-bin 分類命中率(隨機猜 = 1/n_range_bins)
+        rg_hit_mask = None
         if isinstance(out, tuple) and range_labels is not None:
             rg_pred = out[1].argmax(dim=-1)
-            rg_hit = (rg_pred == range_labels).float().mean().item()
-            m["range_hit_rate"] = rg_hit
+            rg_hit_mask = (rg_pred == range_labels)
+            m["range_hit_rate"] = rg_hit_mask.float().mean().item()
             m["range_chance"] = 1.0 / cfg.range_head.n_range_bins
+
+        if breakdown:
+            # ---- 分方位扇區:把 true_deg 切成 n_sectors 個等寬扇區 ----
+            # 目的:揪出系統性盲區(尤其前後 / 鏡像方位,RK-4)。
+            sector_w = 360.0 / n_sectors
+            sector_idx = (true_deg / sector_w).long().clamp(max=n_sectors - 1)
+            sectors = []
+            for s in range(n_sectors):
+                mask = sector_idx == s
+                cnt = int(mask.sum().item())
+                row = {
+                    "sector": f"{int(s*sector_w):3d}-{int((s+1)*sector_w):3d}°",
+                    "n": cnt,
+                    "hit_rate": hit[mask].float().mean().item() if cnt else float("nan"),
+                    "mean_err": err[mask].mean().item() if cnt else float("nan"),
+                }
+                if rg_hit_mask is not None:
+                    row["range_hit"] = rg_hit_mask[mask].float().mean().item() if cnt else float("nan")
+                sectors.append(row)
+            m["sectors"] = sectors
+
+            # ---- 分 signal_type:cw / chirp / pulse_train 各自表現 ----
+            # 目的:chirp/pulse 單 bin 相位意義弱(extract_features 自陳),
+            #       若失敗集中在某型 → 是訊號設計問題而非幾何問題。
+            if sig_types is not None:
+                by_sig = []
+                hit_cpu = hit.cpu().numpy()
+                err_cpu = err.cpu().numpy()
+                rg_cpu = rg_hit_mask.cpu().numpy() if rg_hit_mask is not None else None
+                for st in np.unique(sig_types):
+                    smask = (sig_types == st)
+                    cnt = int(smask.sum())
+                    row = {
+                        "sig_type": str(st),
+                        "n": cnt,
+                        "hit_rate": float(hit_cpu[smask].mean()) if cnt else float("nan"),
+                        "mean_err": float(err_cpu[smask].mean()) if cnt else float("nan"),
+                    }
+                    if rg_cpu is not None:
+                        row["range_hit"] = float(rg_cpu[smask].mean()) if cnt else float("nan")
+                    by_sig.append(row)
+                m["by_sig"] = by_sig
     net.train()
     return m
+
+
+def print_breakdown(m: dict) -> None:
+    """把 evaluate(breakdown=True) 的分組結果印成對齊的表。"""
+    has_rg = "range_hit_rate" in m
+    if "sectors" in m:
+        print("\n  ── 分方位扇區(揪鏡像盲區)──")
+        hdr = f"  {'扇區':>10} {'樣本':>6} {'hit_rate':>9} {'mean_err':>9}"
+        if has_rg:
+            hdr += f" {'range_hit':>10}"
+        print(hdr)
+        for r in m["sectors"]:
+            line = (f"  {r['sector']:>10} {r['n']:>6} "
+                    f"{r['hit_rate']:>8.1%} {r['mean_err']:>8.1f}°")
+            if has_rg and "range_hit" in r:
+                line += f" {r['range_hit']:>9.1%}"
+            print(line)
+    if "by_sig" in m:
+        print("\n  ── 分 signal_type ──")
+        hdr = f"  {'類型':>12} {'樣本':>6} {'hit_rate':>9} {'mean_err':>9}"
+        if has_rg:
+            hdr += f" {'range_hit':>10}"
+        print(hdr)
+        for r in m["by_sig"]:
+            line = (f"  {r['sig_type']:>12} {r['n']:>6} "
+                    f"{r['hit_rate']:>8.1%} {r['mean_err']:>8.1f}°")
+            if has_rg and "range_hit" in r:
+                line += f" {r['range_hit']:>9.1%}"
+            print(line)
 
 
 def save_ckpt(path: Path, net, opt, step: int, best_hit: float) -> None:
@@ -91,8 +180,8 @@ def main() -> None:
           f"{' (' + torch.cuda.get_device_name(0) + ')' if device.type=='cuda' else ''}")
 
     cfg = DEFAULT
-    tr_feats, tr_labels, tr_range = load_npz(args.train_data, device)
-    ev_feats, ev_labels, ev_range = load_npz(args.eval_data, device)
+    tr_feats, tr_labels, tr_range, _tr_sig = load_npz(args.train_data, device)
+    ev_feats, ev_labels, ev_range, ev_sig = load_npz(args.eval_data, device)
     print(f"訓練資料 {tuple(tr_feats.shape)} | 評估資料 {tuple(ev_feats.shape)}")
 
     # 資料含距離 label → 建雙 head;否則退回單 head(向後相容舊資料)
@@ -167,11 +256,16 @@ def main() -> None:
             save_ckpt(ckpt_dir / f"step_{step}.pt", net, opt, step, best_hit)
             save_ckpt(ckpt_dir / "latest.pt", net, opt, step, best_hit)
 
-    final = evaluate(ev_feats, ev_labels, ev_range, net, cfg)
+    final = evaluate(ev_feats, ev_labels, ev_range, net, cfg,
+                     sig_types=ev_sig, breakdown=True)
     save_ckpt(ckpt_dir / "latest.pt", net, opt, end_step, best_hit)
     writer.close()
-    print(f"\n最終評估: {final}")
-    print(f"checkpoint: {ckpt_dir}")
+    # 整體數字
+    summary = {k: v for k, v in final.items() if k not in ("sectors", "by_sig")}
+    print(f"\n最終評估(整體): {summary}")
+    # 分組診斷表(分象限揪鏡像盲區 + 分 signal_type)
+    print_breakdown(final)
+    print(f"\ncheckpoint: {ckpt_dir}")
 
 
 if __name__ == "__main__":
