@@ -4,19 +4,14 @@ sensor_model_demo.py
 完整可執行版
 --------------------------------------------------
 
-功能:
-- LocalizationNet 接入
-- pyroom 聲學模擬
-- 真實 mic 幾何
-- 聲波可視化
-- AI 自動預測方向
-- 粒子發射
-- 左鍵新增障礙物
-- 右鍵刪除障礙物
-- R 重新生成目標
-- SPACE 重新發射粒子
-- mic 視覺化
-- mic pair 視覺化
+新增功能:
+- C 切換 signal type
+- Q/A 調整 START_FREQ
+- W/S 調整 END_FREQ
+- 支援:
+    - cw
+    - chirp
+    - pulse_train
 
 安裝:
     pip install pygame torch numpy scipy pyroomacoustics
@@ -66,6 +61,22 @@ PARTICLE_SPEED = 10
 PARTICLE_LIFE = 120
 
 PIXELS_PER_METER = 12000
+
+
+# ============================================================
+# 訊號設定
+# ============================================================
+
+SIGNAL_TYPES = [
+    "cw",
+    "chirp",
+    "pulse_train",
+]
+
+signal_mode_idx = 1
+
+START_FREQ = 4000
+END_FREQ = 8000
 
 
 # ============================================================
@@ -229,6 +240,10 @@ class SensorModel:
 
     def simulate_audio(self, src_pos):
 
+        global signal_mode_idx
+        global START_FREQ
+        global END_FREQ
+
         room = pra.ShoeBox(
             [10, 8],
             fs=48000,
@@ -249,12 +264,58 @@ class SensorModel:
             int(48000 * duration)
         )
 
-        signal = chirp(
-            t,
-            4000,
-            t[-1],
-            8000
-        )
+        signal_type = SIGNAL_TYPES[signal_mode_idx]
+
+        # ====================================================
+        # CW
+        # ====================================================
+
+        if signal_type == "cw":
+
+            signal = np.sin(
+                2 * np.pi * START_FREQ * t
+            )
+
+        # ====================================================
+        # CHIRP
+        # ====================================================
+
+        elif signal_type == "chirp":
+
+            signal = chirp(
+                t,
+                START_FREQ,
+                t[-1],
+                END_FREQ
+            )
+
+        # ====================================================
+        # PULSE TRAIN
+        # ====================================================
+
+        elif signal_type == "pulse_train":
+
+            base = np.sin(
+                2 * np.pi * START_FREQ * t
+            )
+
+            period = max(
+                1,
+                len(t) // 8
+            )
+
+            gate = (
+                (np.arange(len(t)) % period)
+                < (period // 2)
+            ).astype(np.float32)
+
+            signal = base * gate
+
+        else:
+
+            signal = np.sin(
+                2 * np.pi * START_FREQ * t
+            )
 
         room.add_source(
             src_pos,
@@ -338,6 +399,10 @@ class SensorModel:
 # ============================================================
 
 def main():
+
+    global signal_mode_idx
+    global START_FREQ
+    global END_FREQ
 
     ap = argparse.ArgumentParser()
 
@@ -434,10 +499,6 @@ def main():
             SoundWave(target_pos.copy())
         )
 
-        # ================================================
-        # propagation delay
-        # ================================================
-
         distance_m = dist / 100
 
         travel_time = distance_m / 343
@@ -465,10 +526,6 @@ def main():
 
         dt = clock.tick(60)
 
-        # ----------------------------------------------------
-        # event
-        # ----------------------------------------------------
-
         for event in pygame.event.get():
 
             if event.type == pygame.QUIT:
@@ -491,6 +548,71 @@ def main():
 
                     spawn_particles()
 
+                # ============================================
+                # 切換 signal type
+                # ============================================
+
+                elif event.key == pygame.K_c:
+
+                    signal_mode_idx = (
+                        signal_mode_idx + 1
+                    ) % len(SIGNAL_TYPES)
+
+                    print(
+                        f"Signal Type = "
+                        f"{SIGNAL_TYPES[signal_mode_idx]}"
+                    )
+
+                    true_angle, target_pos = (
+                        reset_target()
+                    )
+
+                # ============================================
+                # 調整頻率
+                # ============================================
+
+                elif event.key == pygame.K_q:
+
+                    START_FREQ += 500
+
+                    print(
+                        f"START_FREQ = "
+                        f"{START_FREQ}"
+                    )
+
+                elif event.key == pygame.K_a:
+
+                    START_FREQ = max(
+                        100,
+                        START_FREQ - 500
+                    )
+
+                    print(
+                        f"START_FREQ = "
+                        f"{START_FREQ}"
+                    )
+
+                elif event.key == pygame.K_w:
+
+                    END_FREQ += 500
+
+                    print(
+                        f"END_FREQ = "
+                        f"{END_FREQ}"
+                    )
+
+                elif event.key == pygame.K_s:
+
+                    END_FREQ = max(
+                        START_FREQ,
+                        END_FREQ - 500
+                    )
+
+                    print(
+                        f"END_FREQ = "
+                        f"{END_FREQ}"
+                    )
+
             # =================================================
             # mouse
             # =================================================
@@ -499,7 +621,6 @@ def main():
 
                 mx, my = pygame.mouse.get_pos()
 
-                # 左鍵新增 obstacle
                 if event.button == 1:
 
                     rect = pygame.Rect(
@@ -513,7 +634,6 @@ def main():
                         Obstacle(rect)
                     )
 
-                # 右鍵刪除 obstacle
                 elif event.button == 3:
 
                     for obs in obstacles[:]:
@@ -562,17 +682,11 @@ def main():
 
         screen.fill(BG)
 
-        # obstacle
         for obs in obstacles:
             obs.draw(screen)
 
-        # sound waves
         for w in waves:
             w.draw(screen)
-
-        # ====================================================
-        # mic pair lines
-        # ====================================================
 
         for a, b in MIC_PAIRS:
 
@@ -586,10 +700,6 @@ def main():
                 pb.astype(int),
                 1
             )
-
-        # ====================================================
-        # microphones
-        # ====================================================
 
         for i, mic in enumerate(MIC_LAYOUT):
 
@@ -613,10 +723,6 @@ def main():
                 (pos[0] + 10, pos[1] - 10)
             )
 
-        # ====================================================
-        # target
-        # ====================================================
-
         rect = pygame.Rect(
             int(target_pos[0] - TARGET_SIZE/2),
             int(target_pos[1] - TARGET_SIZE/2),
@@ -629,10 +735,6 @@ def main():
             RED,
             rect
         )
-
-        # ====================================================
-        # real direction
-        # ====================================================
 
         true_end = (
             CENTER +
@@ -647,10 +749,6 @@ def main():
             3
         )
 
-        # ====================================================
-        # predicted direction
-        # ====================================================
-
         pred_end = (
             CENTER +
             angle_to_vec(pred_angle) * 200
@@ -664,22 +762,22 @@ def main():
             3
         )
 
-        # ====================================================
-        # particles
-        # ====================================================
-
         for p in particles:
             p.draw(screen)
-
-        # ====================================================
-        # UI
-        # ====================================================
 
         err = abs(
             (pred_angle - true_angle + 180) % 360 - 180
         )
 
         texts = [
+            f"Signal Type: {SIGNAL_TYPES[signal_mode_idx]}",
+            f"Start Hz: {START_FREQ}",
+            f"End Hz: {END_FREQ}",
+            "",
+            "C = Change Signal",
+            "Q/A = Start Hz +/-",
+            "W/S = End Hz +/-",
+            "",
             f"True Angle: {true_angle:.1f}",
             f"Pred Angle: {pred_angle:.1f}",
             f"Error: {err:.1f}",
