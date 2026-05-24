@@ -1,0 +1,54 @@
+stage: 5
+network:
+  hidden_layers:
+  - 256
+  - 256
+  - 128
+  activation: relu
+  layer_norm: true
+sac:
+  learning_rate: 5.0e-05
+  buffer_size: 500000
+  batch_size: 256
+  gamma: 0.99
+  tau: 0.005
+  train_freq: 1
+  gradient_steps: 1
+  learning_starts: 5000
+  ent_coef: auto
+schedule:
+  total_steps: 2000000
+  n_envs: 32
+  checkpoint_every: 50000
+  eval_every: 20000
+  seed: 42
+reward_weights:
+  W_HORIZONTAL: 2.0
+  W_VERTICAL: 1.0
+  W_PROGRESS: 5.0
+  W_ACTION_SMOOTH: 0.001
+  W_TIME: 0.01
+  R_TIMEOUT: -1.0
+  W_GRIPPER_CLOSE: 0.1
+  GRIPPER_SHAPING_RADIUS: 0.05
+  R_SUCCESS_LIFT: 10.0
+  W_HOLDING: 0.05
+  W_DIST_TO_TARGET: 2.0
+  R_SUCCESS_PLACE: 20.0
+  R_SUCCESS_RELEASE: 20.0
+shape_mix:
+  enabled: false
+  shapes:
+  - box
+  - sphere
+  - cylinder
+  weights:
+  - 1.0
+  - 1.0
+  - 1.0
+_runtime:
+  total_steps: 2000000
+  n_envs: 32
+  seed: 42
+  tag: sac_stage5
+  resume: /home/groi/dobot_project/runs/sac_stage4_20260523_083115/best/best_model.zip

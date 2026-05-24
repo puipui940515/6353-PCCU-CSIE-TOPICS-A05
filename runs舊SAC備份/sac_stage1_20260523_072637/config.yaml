@@ -1,0 +1,38 @@
+stage: 1
+network:
+  hidden_layers:
+  - 256
+  - 256
+  - 128
+  activation: relu
+  layer_norm: true
+sac:
+  learning_rate: 0.0003
+  buffer_size: 300000
+  batch_size: 256
+  gamma: 0.99
+  tau: 0.005
+  train_freq: 1
+  gradient_steps: 1
+  learning_starts: 10000
+  ent_coef: auto
+schedule:
+  total_steps: 500000
+  n_envs: 32
+  checkpoint_every: 20000
+  eval_every: 10000
+  seed: 42
+reward_weights:
+  W_HORIZONTAL: 2.0
+  W_VERTICAL: 1.0
+  W_PROGRESS: 5.0
+  W_ACTION_SMOOTH: 0.001
+  W_TIME: 0.01
+  R_TIMEOUT: -1.0
+  R_SUCCESS_ALIGN: 5.0
+_runtime:
+  total_steps: 500000
+  n_envs: 32
+  seed: 42
+  tag: sac_stage1
+  resume: null

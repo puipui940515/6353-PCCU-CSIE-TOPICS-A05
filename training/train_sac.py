@@ -43,12 +43,14 @@ ACTIVATION_MAP = {
 }
 
 
-def make_env(stage: int, reward_weights: dict | None, seed: int = 0):
+def make_env(stage: int, reward_weights: dict | None, seed: int = 0,
+             perception_weights: str | None = None):
     def _init():
         env = MuJoCoDobotEnv(
             render_mode=None,
             stage=stage,
             reward_weights=reward_weights,
+            perception_weights=perception_weights,
         )
         env = Monitor(env)
         env.action_space.seed(seed)
@@ -76,6 +78,9 @@ def main() -> None:
                         help="從 zip 繼續訓練(stage 切換時用)")
     parser.add_argument("--load-buffer", type=str, default=None,
                         help="同時載入 replay buffer pkl;stage 切換時建議不載(reward 變了)")
+    parser.add_argument("--perception-weights", type=str, default=None,
+                        help="定位網路權重(detect 訓練的 .pt)。不給則 env 用隨機初始化定位網路"
+                             "(等於瞎眼,僅供管路測試)")
     args = parser.parse_args()
 
     cfg_path = Path(args.config).expanduser()
@@ -131,12 +136,15 @@ def main() -> None:
 
     print(f"建立 {n_envs} 個平行 env(stage={stage})...")
     if n_envs == 1:
-        train_env = DummyVecEnv([make_env(stage, reward_weights, seed)])
+        train_env = DummyVecEnv([make_env(stage, reward_weights, seed,
+                                          args.perception_weights)])
     else:
         train_env = SubprocVecEnv([
-            make_env(stage, reward_weights, seed + i) for i in range(n_envs)
+            make_env(stage, reward_weights, seed + i, args.perception_weights)
+            for i in range(n_envs)
         ])
-    eval_env = DummyVecEnv([make_env(stage, reward_weights, seed + 999)])
+    eval_env = DummyVecEnv([make_env(stage, reward_weights, seed + 999,
+                                     args.perception_weights)])
 
     if args.resume:
         resume_path = Path(args.resume).expanduser()

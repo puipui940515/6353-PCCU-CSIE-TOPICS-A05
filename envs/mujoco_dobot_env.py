@@ -16,7 +16,9 @@ import os
 import mujoco
 import numpy as np
 
+from detect.config import LocalizationConfig, DEFAULT as CFG_DEFAULT
 from .base_dobot_env import BaseDobotEnv, N_JOINTS, ACTION_DIM
+from .perception import AcousticPerception
 
 
 POLICY_HZ = 50
@@ -97,8 +99,10 @@ class MuJoCoDobotEnv(BaseDobotEnv):
         render_mode: str | None = None,
         stage: int = 1,
         reward_weights: dict | None = None,
+        cfg: LocalizationConfig = CFG_DEFAULT,
+        perception_weights: str | None = None,
     ) -> None:
-        super().__init__()
+        super().__init__(cfg=cfg)
 
         if stage not in (1, 2, 3, 4, 5):
             raise ValueError(f"stage 必須是 1~5,收到 {stage}")
@@ -144,6 +148,18 @@ class MuJoCoDobotEnv(BaseDobotEnv):
         self._tcp_body_id = mujoco.mj_name2id(
             self.model, mujoco.mjtObj.mjOBJ_BODY, "magician_link_gripper_core"
         )
+        # 基座錨點(base_to_tcp_dist 用):依 requirement §4.3,基座近似世界原點 [0,0,0]。
+        # 直接用世界原點當錨,不猜 body 名(joint 名 ≠ body 名,猜錯會讓距離恆為 0)。
+        self._base_xyz = np.zeros(3, dtype=np.float64)
+        # 6 個麥克風 site(build_scene.py 已加 mic0~mic5)
+        self._mic_site_ids = [
+            mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_SITE, f"mic{i}")
+            for i in range(self.cfg.audio.n_mics)
+        ]
+        if any(sid < 0 for sid in self._mic_site_ids):
+            raise RuntimeError(
+                "找不到 mic site,請先跑 build_scene.py 加 6 個 mic site")
+
         self._block_body_id = mujoco.mj_name2id(
             self.model, mujoco.mjtObj.mjOBJ_BODY, "test_block"
         )
@@ -190,6 +206,21 @@ class MuJoCoDobotEnv(BaseDobotEnv):
         # 當前 episode 的方塊與目標區 xyz(reset 時填)
         self._block_xyz = np.zeros(3, dtype=np.float64)
         self._target_xyz = np.zeros(3, dtype=np.float64)
+
+        # ---- 聲學定位感知前端(SAC 的眼睛)----
+        # 定位網路在 CPU(很小),SAC 平行 env 時不搶 GPU
+        self.perception = AcousticPerception(
+            cfg=self.cfg, weights_path=perception_weights, device="cpu"
+        )
+        # 契約一致性:obs_space 由 config 宣告,但 source_range 須權重真有距離 head 才給。
+        # 若 config 想要 source_range 但權重沒有 → 自動關掉並重建 obs_space,避免維度對不上。
+        if self.cfg.obs.enable_source_range and not self.perception.has_range:
+            print("⚠️  MuJoCoDobotEnv:config 要 source_range,但定位權重無距離 head,"
+                  "自動關閉 source_range(退回只給方位)。")
+            self.cfg.obs.enable_source_range = False
+            self.observation_space = self._build_observation_space(self.cfg)
+        # 收音 DR 用的 rng,reset(seed) 時重設,確保可重現(Instructions §5)
+        self._audio_rng = np.random.default_rng(0)
 
     # ============================================================
     # Stage 設定
@@ -262,6 +293,9 @@ class MuJoCoDobotEnv(BaseDobotEnv):
         self._has_lifted = False
         self._task_state = TASK_STATE_INITIAL
         self._block_xyz = block_xyz.copy()
+        # 收音 DR rng 跟著 seed 重設(同一 seed → 同一聲學渲染序列)
+        self._audio_rng = np.random.default_rng(
+            (seed if seed is not None else 0) + 10_000)
         self._target_xyz = target_xyz.copy()
 
         return self._build_obs(), {
@@ -371,13 +405,40 @@ class MuJoCoDobotEnv(BaseDobotEnv):
         tcp_pose = np.concatenate([tcp_xyz, tcp_quat]).astype(np.float32)
         gripper = np.array([self.data.qpos[self._gripper_qpos_addr]], dtype=np.float32)
 
-        return {
-            "joint_position": joint_pos,
-            "joint_velocity": joint_vel,
-            "tcp_pose": tcp_pose,
-            "gripper_state": gripper,
-            "block_pose": self._get_block_pose(),
-        }
+        obs: dict[str, np.ndarray] = {}
+        o = self.cfg.obs
+
+        # ---- 本體感測 ----
+        if o.enable_proprio:
+            obs["joint_position"] = joint_pos
+            obs["joint_velocity"] = joint_vel
+            obs["tcp_pose"] = tcp_pose
+            obs["gripper_state"] = gripper
+
+        # ---- base_to_tcp_dist:純 FK,不靠聲學/視覺 ----
+        if o.enable_base_to_tcp_dist:
+            d = float(np.linalg.norm(tcp_xyz - self._base_xyz))
+            obs["base_to_tcp_dist"] = np.array([d], dtype=np.float32)
+
+        # ---- 聲學定位(SAC 的眼睛)----
+        # ⚠️ _block_xyz 只當 pyroomacoustics 發聲座標,不直接餵 policy。
+        #    policy 拿到的是定位網路推論的 source_*,不是真值(requirement §3)。
+        if o.enable_source_azimuth or o.enable_source_range:
+            mic_world = np.array(
+                [self.data.site_xpos[sid] for sid in self._mic_site_ids])
+            loc = self.perception.localize(
+                mic_world, self._block_xyz, self._audio_rng)
+            if o.enable_source_azimuth:
+                obs["source_azimuth"] = loc["source_azimuth"]
+            # source_range:config 要開、且權重真的有距離 head 才放
+            if o.enable_source_range and "source_range" in loc:
+                obs["source_range"] = loc["source_range"]
+
+        # ---- 上帝視角(預設關;僅 debug)----
+        if o.enable_oracle_block_pose:
+            obs["block_pose"] = self._get_block_pose()
+
+        return obs
 
     def _get_block_pose(self) -> np.ndarray:
         return np.concatenate([

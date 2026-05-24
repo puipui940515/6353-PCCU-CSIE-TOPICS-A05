@@ -15,6 +15,7 @@
 
 from __future__ import annotations
 import numpy as np
+import pyroomacoustics as pra
 from scipy.signal import butter, sosfiltfilt
 
 from config import LocalizationConfig, DEFAULT
@@ -56,26 +57,49 @@ def synthesize_source(cfg: LocalizationConfig, rng: np.random.Generator) -> tupl
 
 
 def synthesize_reception(
-    cfg: LocalizationConfig, source_xyz: np.ndarray, rng: np.random.Generator
+    cfg: LocalizationConfig,
+    source_xyz: np.ndarray,
+    rng: np.random.Generator,
+    mic_world: np.ndarray | None = None,
 ) -> tuple[np.ndarray, dict]:
-    """模擬 N_mics 通道接收(占位:自由場幾何延遲模型)。
+    """模擬 N_mics 通道接收。
 
-    ⚠️ 真正接 pyroomacoustics 時替換本函式內部,但保持回傳 shape 不變:
+    Args:
+        cfg: 設定
+        source_xyz: 聲源世界座標(3,)
+        rng: 亂數產生器(DR 用)
+        mic_world: 麥克風世界座標 (n_mics, 3)。env 從 mic site 取真實世界座標傳入
+                   (陣列裝末端會隨手臂動)。None 則退回 cfg.audio.mic_layout(僅 smoke test)。
+
+    Returns:
         signals: (n_mics, n_samples)
+        meta: 隨機參數記錄
+
+    實作:pyroomacoustics ShoeBox(image-source)。回傳 shape 固定 (n_mics, n_samples),
+    所以 perception / model / env 介面不變。
     """
     src_sig, meta = synthesize_source(cfg, rng)
     fs = cfg.audio.fs
     n = cfg.audio.n_samples
-    mics = np.asarray(cfg.audio.mic_layout)  # (n_mics, 3)
 
-    signals = np.zeros((cfg.audio.n_mics, n), dtype=np.float32)
-    for i, mic in enumerate(mics):
-        dist = np.linalg.norm(source_xyz - mic)
-        delay_samples = dist / SOUND_SPEED * fs
-        # 分數延遲用線性插值近似
-        idx = np.arange(n) - delay_samples
-        atten = 1.0 / max(dist, 1e-3)  # 距離衰減
-        signals[i] = atten * np.interp(idx, np.arange(n), src_sig, left=0.0, right=0.0)
+    if mic_world is None:
+        mics = np.asarray(cfg.audio.mic_layout, dtype=np.float64)
+    else:
+        mics = np.asarray(mic_world, dtype=np.float64)
+    assert mics.shape == (cfg.audio.n_mics, 3), \
+        f"mic 座標應為 ({cfg.audio.n_mics}, 3),收到 {mics.shape}"
+
+    # 混合渲染:以 pyroom_ratio 機率走 pyroomacoustics 真實聲學,其餘走自由場(快)。
+    # 用傳入的 rng 擲骰(不可用 np.random,否則 seed 失效、不可重現)。
+    use_pyroom = rng.random() < cfg.source_dr.pyroom_ratio
+    if use_pyroom:
+        signals = _render_pyroomacoustics(
+            cfg, np.asarray(source_xyz, dtype=np.float64), mics, src_sig, rng, meta)
+        meta["render_type"] = meta.get("render_type", "pyroom")  # fallback 時內部會改成 freefield
+    else:
+        signals = _freefield_fallback(
+            cfg, np.asarray(source_xyz, dtype=np.float64), mics, src_sig)
+        meta["render_type"] = "freefield"
 
     # --- 加超聲頻段內噪聲(由 SNR 控制)---
     snr_db = rng.uniform(*cfg.source_dr.snr_db_range)
@@ -93,6 +117,93 @@ def synthesize_reception(
 
     meta["snr_db"] = float(snr_db)
     return signals, meta
+
+
+def _render_pyroomacoustics(
+    cfg: LocalizationConfig,
+    source_xyz: np.ndarray,
+    mics: np.ndarray,
+    src_sig: np.ndarray,
+    rng: np.random.Generator,
+    meta: dict,
+) -> np.ndarray:
+    """用 pyroomacoustics ShoeBox 渲染多通道接收,輸出對齊 (n_mics, n_samples)。
+
+    座標處理:pyroomacoustics 要求所有座標 > 0 且在房間內。mic/source 的世界座標
+    可能含負值或落在房間外,故先平移到房間中央的局部框,只保留「相對幾何」
+    (TDOA 只依賴相對位置,絕對位置無意義)。
+
+    ⚠️ 標 ⟵核對 的聲學參數為保守預設,真機聲學特性確認後須校準:
+      - 超聲在空氣衰減遠強於可聽聲,RT60 取小;image-source order 取低(高頻多階反射貢獻小)。
+    """
+    fs = cfg.audio.fs
+    n = cfg.audio.n_samples
+    n_mics = cfg.audio.n_mics
+
+    # --- DR:房間尺寸與 RT60 隨機(對齊 domain.md §5.3 場景/聲學隨機化)---
+    room_dim = [
+        rng.uniform(3.0, 6.0),   # ⟵核對 domain §5.3:房間 [3-6]m
+        rng.uniform(3.0, 6.0),
+        rng.uniform(2.4, 3.5),
+    ]
+    rt60 = rng.uniform(0.15, 0.4)  # ⟵核對 超聲衰減強,RT60 取偏小
+
+    # --- 把 mic+source 的相對幾何放進房間中央 ---
+    pts = np.vstack([mics, source_xyz[None, :]])     # (n_mics+1, 3)
+    centroid = pts.mean(axis=0)
+    room_center = np.array(room_dim) / 2.0
+    mics_local = mics - centroid + room_center
+    src_local = source_xyz - centroid + room_center
+    # 安全夾:確保都在房間內(留 10cm 邊界)
+    mics_local = np.clip(mics_local, 0.1, np.array(room_dim) - 0.1)
+    src_local = np.clip(src_local, 0.1, np.array(room_dim) - 0.1)
+
+    try:
+        e_abs, max_order = pra.inverse_sabine(rt60, room_dim)
+        room = pra.ShoeBox(
+            room_dim, fs=fs,
+            materials=pra.Material(e_abs),
+            max_order=int(min(max_order, 3)),   # ⟵核對 超聲高階反射貢獻小,封頂 3 省算力
+            air_absorption=True,
+        )
+        room.add_source(src_local, signal=src_sig)
+        room.add_microphone_array(mics_local.T)
+        room.simulate()
+        rendered = room.mic_array.signals    # (n_mics, n_render),n_render 含 RIR 拖尾
+    except Exception as e:
+        # 渲染失敗(極端幾何/參數)→ 退回自由場幾何延遲,不讓整個 episode 崩
+        meta["pra_fallback"] = str(e)
+        meta["render_type"] = "freefield_fallback"
+        return _freefield_fallback(cfg, source_xyz, mics, src_sig)
+
+    # --- 對齊長度到 n_samples:取「直達波抵達」後的 n 個樣本 ---
+    # 直達波延遲 = 最近 mic 距離 / 音速,從那裡起算窗口,確保抓到訊號主體
+    dists = np.linalg.norm(mics_local - src_local, axis=1)
+    onset = int(np.min(dists) / SOUND_SPEED * fs)
+    signals = np.zeros((n_mics, n), dtype=np.float32)
+    for i in range(n_mics):
+        seg = rendered[i, onset:onset + n]
+        signals[i, :len(seg)] = seg
+    meta["room_dim"] = [round(float(x), 2) for x in room_dim]
+    meta["rt60"] = round(float(rt60), 3)
+    return signals
+
+
+def _freefield_fallback(
+    cfg: LocalizationConfig, source_xyz: np.ndarray,
+    mics: np.ndarray, src_sig: np.ndarray,
+) -> np.ndarray:
+    """自由場幾何延遲模型(pyroomacoustics 渲染失敗時的後備,即舊占位實現)。"""
+    fs = cfg.audio.fs
+    n = cfg.audio.n_samples
+    signals = np.zeros((cfg.audio.n_mics, n), dtype=np.float32)
+    for i, mic in enumerate(mics):
+        dist = np.linalg.norm(source_xyz - mic)
+        delay_samples = dist / SOUND_SPEED * fs
+        idx = np.arange(n) - delay_samples
+        atten = 1.0 / max(dist, 1e-3)
+        signals[i] = atten * np.interp(idx, np.arange(n), src_sig, left=0.0, right=0.0)
+    return signals
 
 
 def bandpass(cfg: LocalizationConfig, signals: np.ndarray) -> np.ndarray:
@@ -228,19 +339,26 @@ def extract_features_v2(
             dphi = dphi - 2 * np.pi * frac * 0.0  # 差值中抵消,保留鉤子供日後絕對相位用
 
         # opt2: 用近對(mic1, 4mm)做粗估解遠對相位繞圈
+        #
+        # ⚠️ 修正(2026-05-23):舊版解開繞圈後直接 sin(dphi)/cos(dphi),
+        #    但解開的相位 > π,sin/cos 會把它再 wrap 回去 → 解模糊成果被抹除
+        #    (遠對 mic 仍繞圈,等於沒解)。
+        #    正解:解開後「折算回近對等效相位」(除以基線比),落回 ±π 主值域,
+        #    sin/cos 才安全;且遠對與近對方位同步單調,遠對不再餵假值。
         if opt2_unwrap and i >= 2:
-            # 近對相位差 → 粗方位 → 預期遠對相位 → 解繞圈
+            # 近對相位差(4mm 基線,~半波長內,視為無模糊基準)
             d_near = np.angle(np.sum(
                 (ffts[1, band] * np.conj(ref_band)) /
                 (np.abs(ffts[1, band] * np.conj(ref_band)) + 1e-12)))
-            # 基線比例:遠對間距 / 近對間距
             mics = np.asarray(cfg.audio.mic_layout)
             base_near = np.linalg.norm(mics[1] - mics[0]) + 1e-12
             base_cur = np.linalg.norm(mics[i] - mics[0])
+            # 預期遠對相位(無模糊) → 解到最近的 2π 倍數
             expected = d_near * (base_cur / base_near)
-            # 把 dphi 解到離 expected 最近的 2π 倍數
             k = np.round((expected - dphi) / (2 * np.pi))
-            dphi = dphi + 2 * np.pi * k
+            dphi_unwrapped = dphi + 2 * np.pi * k
+            # 折算回近對等效相位:落回 ±π,sin/cos 安全且單調
+            dphi = dphi_unwrapped * (base_near / base_cur)
 
         feats.append(np.sin(dphi))
         feats.append(np.cos(dphi))

@@ -1,85 +1,240 @@
-"""定位關卡設定 · single source of truth(本關卡用)
+"""定位網路 + Observation 的單一設定來源(single source of truth)
 
-所有「仿真假設、待硬體定案」的數值集中在這裡。
-硬體選型確定後,只改這個檔,不動 env / 網路。
+涵蓋範圍(對齊使用者拍板的界線):
+  ✅ 聲學定位:audio / source_dr / bandpass / task / model
+  ✅ Observation space 可調參數:obs(bin 邊界、各項範圍、開關)
+  ❌ SAC 訓練超參數 → 留在 configs/sac_stage*.yaml(curriculum resume 機制依賴它,不搬)
 
-對應 domain.md §4.1(audio obs)、§5.3(DR 範圍)、§12(硬體待決)。
-注意:本檔是「定位預訓練關卡」專用,不覆寫 domain.md 主契約的 action space。
+設計原則:
+  - 全 dataclass + type hints(對齊 Instructions.md §3)
+  - 「改了只需調參」與「改了破壞契約」兩類分開,後者在 __post_init__ 加護欄
+  - 一處改、全專案生效;signal_processing / model / env 都讀同一份
+
+⚠️ 重建說明:原 config.py 未上傳,本檔由各檔案對 cfg.* 的實際用法反推重建。
+   既有欄位(audio/task/source_dr/bandpass)的「名稱與結構」與原版一致;
+   標 `# ⟵核對` 的數值是推定值,請對照你手邊原檔確認。
+
+對應文件:domain.md §4.1(obs 契約)、requirement_localization_to_sac.md(設計依據)。
 """
 
+from __future__ import annotations
 from dataclasses import dataclass, field
 
 
+# ============================================================
+# 既有區塊(重建自現有用法,結構不可改名 — 會破壞 signal_processing/model)
+# ============================================================
+
 @dataclass
 class AudioConfig:
-    """聲學與麥克風陣列(仿真假設,待硬體定案)。
-
-    收音條件需求(從模型可學性反推,與品牌無關):
-      - fs 192kHz:為相位精度,非為聽更高頻(40kHz @ 192k 一週期 ~4.8 採樣點)
-      - 雙間距幾何:近對(<半波長 4.3mm)解相位模糊 + 遠對(2-3cm)求精度
-      - ≥6 麥:水平 4 + 垂直 2,才能解俯仰與前後鏡像
-      - 硬前提(不滿足方法不成立):全通道共用時鐘同步、增益固定或聯動
-    """
-    fs: int = 192_000             # 為相位精度
-    n_mics: int = 6               # 改這裡會連動 obs shape
-    win_ms: float = 10.0          # 觀測窗長度 ms
-    # 雙間距幾何:水平 [0,4,12,28]mm(近對解模糊+遠對求精度)+ 垂直 2 麥
-    mic_layout: tuple = (
-        (0.000,  0.000, 0.0),     # mic0 參考
-        (0.004,  0.000, 0.0),     # mic1 近對(<4.3mm 半波長,解模糊)
-        (0.012,  0.000, 0.0),     # mic2 中基線
-        (0.028,  0.000, 0.0),     # mic3 遠對(求精度)
-        (0.000,  0.012, 0.0),     # mic4 垂直(俯仰維度)
-        (0.000, -0.012, 0.0),     # mic5 垂直
-    )
-
-    @property
-    def n_samples(self) -> int:
-        return int(self.fs * self.win_ms / 1000.0)  # 192k * 0.01 = 1920
-
-
-@dataclass
-class SourceDR:
-    """方塊發聲的 domain randomization 範圍。
-
-    核心原則:隨機「現實不可預料的因素」,但保留超聲窄帶隔離優勢。
-    可聽噪聲(< 20kHz)仍會被加入,但階段1 帶通會濾掉。
-    """
-    freq_hz_range: tuple = (38_000.0, 42_000.0)   # 中心頻率漂移(換能器個體差異)
-    signal_types: tuple = ("cw", "chirp", "pulse_train")  # 隨機抽:連續/啁啾/脈衝串
-    snr_db_range: tuple = (5.0, 30.0)             # 超聲頻段內 SNR
-    amplitude_range: tuple = (0.3, 1.0)           # 發聲強度
-    chirp_bw_hz: float = 4_000.0                  # chirp 帶寬(中心 ± 2k)
-    audible_noise_db_range: tuple = (0.0, 40.0)   # 可聽噪聲(會被帶通濾掉,測魯棒性)
+    """收音與陣列幾何。"""
+    fs: int = 192_000                 # ⟵核對 超聲頻段,須 > 2×最高發聲頻率
+    n_mics: int = 6                   # 鎖 6(雙間距陣列,docs_mic_array_mod.md)。改它破壞契約
+    n_samples: int = 1024             # ⟵核對 單窗取樣數
+    # 6 麥座標(取自 build_scene.py 的 mic site,單位 m,相對末端 body)
+    # 近對 4mm 解相位模糊、遠對 28mm 給角分辨、垂直對為日後俯仰
+    mic_layout: list = field(default_factory=lambda: [
+        [0.000,  0.000, 0.0],   # mic0
+        [0.004,  0.000, 0.0],   # mic1  近對(4mm < 半波長 4.3mm)
+        [0.012,  0.000, 0.0],   # mic2
+        [0.028,  0.000, 0.0],   # mic3  遠對
+        [0.000,  0.012, 0.0],   # mic4  垂直
+        [0.000, -0.012, 0.0],   # mic5  垂直
+    ])
 
 
 @dataclass
 class BandpassConfig:
-    """階段1 帶通濾波(固定 DSP,無學習)。"""
-    low_hz: float = 35_000.0      # 比最低發聲頻率再低一點
-    high_hz: float = 45_000.0     # 比最高發聲頻率再高一點
-    order: int = 4                # Butterworth 階數
+    """帶通濾波:只留超聲頻段,濾掉可聽噪聲(signal_processing.bandpass)。"""
+    order: int = 4
+    low_hz: float = 35_000.0          # ⟵核對
+    high_hz: float = 45_000.0         # ⟵核對 須 < fs/2
+
+
+@dataclass
+class SourceDRConfig:
+    """聲源域隨機化(signal_processing.synthesize_source/reception)。
+
+    ⚠️ amplitude_range / snr 是距離 head 的天敵:振幅是測距的主要線索,
+       這裡隨機化得越兇,source_range 在 DR 下命中率掉得越多(requirement §6 的 go/no-go)。
+    """
+    freq_hz_range: tuple[float, float] = (38_000.0, 42_000.0)   # ⟵核對
+    amplitude_range: tuple[float, float] = (0.5, 1.0)            # ⟵核對
+    signal_types: tuple[str, ...] = ("cw", "chirp", "pulse_train")
+    chirp_bw_hz: float = 4_000.0                                 # ⟵核對
+    snr_db_range: tuple[float, float] = (0.0, 30.0)
+    audible_noise_db_range: tuple[float, float] = (-20.0, 20.0)  # ⟵核對
+    # 混合渲染比例:每筆樣本以此機率走 pyroomacoustics 真實聲學,其餘走自由場(快)。
+    # 0.25 = 3:1(自由場:混響)。混響佔比越低生成越快,但距離 head 的真實聲學線索越少,
+    # go/no-go 可能更難過 → 距離命中率接近隨機時,提高此值是第一個該試的調整。
+    pyroom_ratio: float = 0.25
 
 
 @dataclass
 class TaskConfig:
-    """關卡與驗證設定。"""
-    # 方塊在工作空間內隨機(對齊 build_scene:半徑 ~0.32m,方塊半邊 0.02)
-    workspace_r_range: tuple = (0.12, 0.30)   # 距基座水平距離
-    workspace_z_range: tuple = (-0.10, 0.10)  # 高度
-    # 輸出表示:方位角熱圖(先只做水平方位,最穩)
-    n_azimuth_bins: int = 72                  # 360° / 72 = 5° 解析度
-    # 命中判定
-    hit_threshold_deg: float = 5.0            # 預測方向與真值夾角 < 5° 算命中
-    seed: int = 0                             # Instructions.md §5:預設不隨機
+    """定位任務定義。"""
+    n_azimuth_bins: int = 72          # 方位 5°/bin。改它破壞 obs 契約(domain §4.1)
+    hit_threshold_deg: float = 10.0   # train_gpu.evaluate 判方位命中的容差
+    # 工作空間範圍(env.sample_block_position 撒方塊用;相對陣列中心)
+    # ⟵核對 對齊機械臂工作半徑 0.32m;距離 bin 邊界(0.08/0.16/0.24)應落在此範圍內
+    workspace_r_range: tuple[float, float] = (0.05, 0.30)   # ⟵核對 陣列中心到方塊水平距離
+    workspace_z_range: tuple[float, float] = (-0.05, 0.05)  # ⟵核對 垂直範圍(水平任務取小)
 
+
+# ============================================================
+# 新增區塊:距離 head(model.py 擴充用)
+# ============================================================
+
+@dataclass
+class RangeHeadConfig:
+    """source_range 距離 head 設定(requirement §5)。
+
+    bin 邊界 = 陣列中心到聲源距離(m)的切點,非等距、近密遠疏。
+    n_range_bins = len(bin_edges)+1。改 bin 數會動 obs 維度 → 破壞契約。
+    """
+    # 4 個 bin 由 3 個切點分隔:很近 <0.08 | 近 0.08-0.16 | 遠 0.16-0.24 | 很遠 >0.24
+    bin_edges_m: tuple[float, ...] = (0.08, 0.16, 0.24)
+    range_ce_weight: float = 1.0      # 距離 CE 在總 loss 的權重(方位 CE 權重固定 1.0)
+
+    @property
+    def n_range_bins(self) -> int:
+        return len(self.bin_edges_m) + 1
+
+
+# ============================================================
+# 新增區塊:Observation space 可調參數(本次需求核心)
+# ============================================================
+
+@dataclass
+class ObsRanges:
+    """各 obs 項的 Box 上下界。改這些「只需調參」,不破壞維度契約。
+
+    用途:base_dobot_env.py 建 observation_space 時讀這裡,不要再 hardcode。
+    機率分布項(source_*)固定 [0,1],不開放調(softmax 輸出本就如此)。
+    """
+    joint_position: tuple[float, float] = (-3.14159, 3.14159)
+    joint_velocity: tuple[float, float] = (-10.0, 10.0)
+    tcp_pose: tuple[float, float] = (-1.0, 1.0)
+    gripper_state: tuple[float, float] = (0.0, 0.02)
+    base_to_tcp_dist: tuple[float, float] = (0.0, 0.4)   # 工作半徑 0.32 + 餘量
+
+
+@dataclass
+class ObsConfig:
+    """Observation space 的單一設定來源(domain.md §4.1 契約的程式對應)。
+
+    維度鎖死區(改 = breaking change,須同步 domain.md §4 + RealDobotEnv):
+      - source_azimuth 維度 = task.n_azimuth_bins
+      - source_range   維度 = range_head.n_range_bins
+    可自由調區(改 = 只需調參,不破壞維度):
+      - ranges 內各上下界
+      - 各 enable_* 開關(關掉某項 → 該 key 不進 obs;關了仍算 breaking,SAC 要重訓)
+    """
+    ranges: ObsRanges = field(default_factory=ObsRanges)
+
+    # 開關:預設為「移除上帝視角後」的目標 obs(requirement §4)
+    enable_proprio: bool = True          # joint_position/velocity, tcp_pose, gripper_state
+    enable_base_to_tcp_dist: bool = True # 本體距離錨點(requirement §4.3)
+    enable_source_azimuth: bool = True   # 聲學方位(取代 block_pose 的方向資訊)
+    enable_source_range: bool = True     # 聲學遠近(go/no-go 沒過就設 False,退回只給方位)
+
+    # 護欄:上帝視角方塊位置。預設 False = 不進 obs(本次需求)。
+    # 設 True 會把 block_pose 塞回 obs,僅供 debug 對照,正式訓練務必 False。
+    enable_oracle_block_pose: bool = False
+
+
+# ============================================================
+# 頂層:LocalizationConfig(名稱不可改 — model/signal_processing import 它)
+# ============================================================
 
 @dataclass
 class LocalizationConfig:
     audio: AudioConfig = field(default_factory=AudioConfig)
-    source_dr: SourceDR = field(default_factory=SourceDR)
     bandpass: BandpassConfig = field(default_factory=BandpassConfig)
+    source_dr: SourceDRConfig = field(default_factory=SourceDRConfig)
     task: TaskConfig = field(default_factory=TaskConfig)
+    range_head: RangeHeadConfig = field(default_factory=RangeHeadConfig)
+    obs: ObsConfig = field(default_factory=ObsConfig)
+
+    def __post_init__(self) -> None:
+        self._validate()
+
+    # ---- 護欄:載入當下就擋下危險/矛盾設定,不等 runtime ----
+    def _validate(self) -> None:
+        a, bp, dr = self.audio, self.bandpass, self.source_dr
+
+        # 採樣定理:帶通上限與發聲頻率須 < fs/2
+        nyq = a.fs / 2
+        assert bp.high_hz < nyq, f"bandpass.high_hz({bp.high_hz}) 須 < fs/2({nyq})"
+        assert bp.low_hz < bp.high_hz, "bandpass.low_hz 須 < high_hz"
+        assert dr.freq_hz_range[1] < nyq, f"發聲頻率上限須 < fs/2({nyq})"
+        assert 0.0 <= dr.pyroom_ratio <= 1.0, \
+            f"pyroom_ratio 須在 [0,1],收到 {dr.pyroom_ratio}"
+
+        # 陣列幾何與 n_mics 一致
+        assert len(a.mic_layout) == a.n_mics, \
+            f"mic_layout 有 {len(a.mic_layout)} 顆,但 n_mics={a.n_mics}"
+
+        # 相位模糊提醒(不擋,只是物理事實):近對間距須 < 半波長
+        half_wavelength = 343.0 / dr.freq_hz_range[1] / 2
+        near_pair = ((a.mic_layout[1][0] - a.mic_layout[0][0]) ** 2 +
+                     (a.mic_layout[1][1] - a.mic_layout[0][1]) ** 2) ** 0.5
+        if near_pair > half_wavelength:
+            print(f"⚠️  config 警告:近對間距 {near_pair*1000:.1f}mm > 半波長 "
+                  f"{half_wavelength*1000:.1f}mm,方位會有空間混疊(signal_processing 已知限制1)")
+
+        # 距離 bin 邊界須遞增、落在工作空間內
+        edges = self.range_head.bin_edges_m
+        assert list(edges) == sorted(edges), f"bin_edges_m 須遞增,收到 {edges}"
+        assert all(e > 0 for e in edges), "bin_edges_m 須為正"
+        assert edges[-1] < self.obs.ranges.base_to_tcp_dist[1], \
+            "最遠 bin 邊界應落在 base_to_tcp_dist 上界內(否則遠近與本體錨點對不上)"
+
+        # 契約一致性:source_range 開了,bin 數要合理
+        if self.obs.enable_source_range:
+            assert self.range_head.n_range_bins >= 2, "啟用 source_range 至少要 2 個 bin"
+
+        # 護欄:正式訓練不該開上帝視角
+        if self.obs.enable_oracle_block_pose:
+            print("🚨 config 警告:enable_oracle_block_pose=True,obs 含上帝視角方塊位置!"
+                  "違反『無視覺』,僅供 debug,正式訓練請設 False(requirement §3)")
+
+    # ---- 給 env 用:回傳「這份設定下 obs 該有哪些 key + shape」----
+    def obs_spec(self) -> dict[str, int]:
+        """回傳 obs 各項維度,base_dobot_env 照這個建 observation_space。
+
+        把「哪些項進 obs、各多大」收斂到 config 一處決定,env 不再 hardcode。
+        """
+        spec: dict[str, int] = {}
+        o = self.obs
+        if o.enable_proprio:
+            spec["joint_position"] = 4
+            spec["joint_velocity"] = 4
+            spec["tcp_pose"] = 7
+            spec["gripper_state"] = 1
+        if o.enable_base_to_tcp_dist:
+            spec["base_to_tcp_dist"] = 1
+        if o.enable_source_azimuth:
+            spec["source_azimuth"] = self.task.n_azimuth_bins
+        if o.enable_source_range:
+            spec["source_range"] = self.range_head.n_range_bins
+        if o.enable_oracle_block_pose:
+            spec["block_pose"] = 7
+        return spec
 
 
+# 全專案共用的預設實例(名稱不可改 — 多檔 import 它)
 DEFAULT = LocalizationConfig()
+
+
+if __name__ == "__main__":
+    cfg = DEFAULT
+    print("=== config 自檢 ===")
+    print(f"n_mics            = {cfg.audio.n_mics}")
+    print(f"n_azimuth_bins    = {cfg.task.n_azimuth_bins}")
+    print(f"n_range_bins      = {cfg.range_head.n_range_bins}")
+    print(f"range bin 邊界(m) = {cfg.range_head.bin_edges_m}")
+    print(f"obs 各項維度      = {cfg.obs_spec()}")
+    total = sum(cfg.obs_spec().values())
+    print(f"obs 攤平總維度    = {total}")
+    print("✅ 護欄通過(若上方無 🚨/⚠️ 則設定健康)")

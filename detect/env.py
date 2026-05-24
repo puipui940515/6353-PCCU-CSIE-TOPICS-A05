@@ -54,9 +54,16 @@ class LocalizationEnv:
         self.v2_opts = v2_opts or {}
 
     def sample(self) -> tuple[np.ndarray, float, dict]:
-        """產生一個樣本。回傳 (feature, true_azimuth_deg, meta)。"""
+        """產生一個樣本。回傳 (feature, true_azimuth_deg, meta)。
+
+        meta 內含 source_xyz 與 source_range_m(陣列中心到聲源距離),
+        距離 label 由 gen_dataset 透過 range_to_bin() 從 source_range_m 算。
+        """
         src = sample_block_position(self.cfg, self.rng)
-        raw, meta = sp.synthesize_reception(self.cfg, src, self.rng)
+        # 陣列中心即原點(true_azimuth 用 arctan2(y,x) 未減陣列位置 → 陣列在原點)。
+        # 距離訓練 label 與聲學渲染的 mic 世界座標都以此為準。
+        mic_world = np.asarray(self.cfg.audio.mic_layout, dtype=np.float64)
+        raw, meta = sp.synthesize_reception(self.cfg, src, self.rng, mic_world=mic_world)
         filt = sp.bandpass(self.cfg, raw)
         if self.use_v2:
             feat = sp.extract_features_v2(self.cfg, filt, **self.v2_opts)
@@ -66,6 +73,7 @@ class LocalizationEnv:
         self._last_meta = meta
         true_az = true_azimuth_deg(src)
         meta["source_xyz"] = src.tolist()
+        meta["source_range_m"] = float(np.linalg.norm(src))   # 陣列中心到聲源,距離 head label 用
         return feat, true_az, meta
 
     def is_hit(self, pred_az_deg: float, true_az_deg: float) -> bool:
@@ -76,6 +84,16 @@ class LocalizationEnv:
 def az_to_bin(az_deg: float, n_bins: int) -> int:
     """真值方位角 → bin index(訓練 label 用)。"""
     return int((az_deg % 360.0) / (360.0 / n_bins)) % n_bins
+
+
+def range_to_bin(range_m: float, bin_edges_m: tuple[float, ...]) -> int:
+    """陣列到聲源距離(m)→ 距離 bin index(距離 head label 用)。
+
+    bin_edges_m 為遞增切點(來自 config.range_head.bin_edges_m,如 (0.08,0.16,0.24))。
+    n_bins = len(edges)+1。例:0.05→bin0(很近)、0.20→bin2(遠)。
+    用 np.searchsorted:落在第幾個區間即 bin index。
+    """
+    return int(np.searchsorted(np.asarray(bin_edges_m), range_m, side="right"))
 
 
 if __name__ == "__main__":
