@@ -61,6 +61,7 @@ def synthesize_reception(
     source_xyz: np.ndarray,
     rng: np.random.Generator,
     mic_world: np.ndarray | None = None,
+    pyroom_ratio: float | None = None,
 ) -> tuple[np.ndarray, dict]:
     """模擬 N_mics 通道接收。
 
@@ -70,6 +71,8 @@ def synthesize_reception(
         rng: 亂數產生器(DR 用)
         mic_world: 麥克風世界座標 (n_mics, 3)。env 從 mic site 取真實世界座標傳入
                    (陣列裝末端會隨手臂動)。None 則退回 cfg.audio.mic_layout(僅 smoke test)。
+        pyroom_ratio: 覆寫混合比例。None 用 cfg.source_dr.pyroom_ratio(訓眼睛用);
+                      env 訓練時傳 cfg.obs.env_pyroom_ratio(兩階段比例解耦)。
 
     Returns:
         signals: (n_mics, n_samples)
@@ -81,6 +84,7 @@ def synthesize_reception(
     src_sig, meta = synthesize_source(cfg, rng)
     fs = cfg.audio.fs
     n = cfg.audio.n_samples
+    ratio = cfg.source_dr.pyroom_ratio if pyroom_ratio is None else float(pyroom_ratio)
 
     if mic_world is None:
         mics = np.asarray(cfg.audio.mic_layout, dtype=np.float64)
@@ -89,9 +93,9 @@ def synthesize_reception(
     assert mics.shape == (cfg.audio.n_mics, 3), \
         f"mic 座標應為 ({cfg.audio.n_mics}, 3),收到 {mics.shape}"
 
-    # 混合渲染:以 pyroom_ratio 機率走 pyroomacoustics 真實聲學,其餘走自由場(快)。
+    # 混合渲染:以 ratio 機率走 pyroomacoustics 真實聲學,其餘走自由場(快)。
     # 用傳入的 rng 擲骰(不可用 np.random,否則 seed 失效、不可重現)。
-    use_pyroom = rng.random() < cfg.source_dr.pyroom_ratio
+    use_pyroom = rng.random() < ratio
     if use_pyroom:
         signals = _render_pyroomacoustics(
             cfg, np.asarray(source_xyz, dtype=np.float64), mics, src_sig, rng, meta)

@@ -221,6 +221,8 @@ class MuJoCoDobotEnv(BaseDobotEnv):
             self.observation_space = self._build_observation_space(self.cfg)
         # 收音 DR 用的 rng,reset(seed) 時重設,確保可重現(Instructions §5)
         self._audio_rng = np.random.default_rng(0)
+        # 聲學觀測降頻緩存:每 perception_update_every 步才真渲染一次,中間沿用。
+        self._cached_loc: dict | None = None
 
     # ============================================================
     # Stage 設定
@@ -296,6 +298,7 @@ class MuJoCoDobotEnv(BaseDobotEnv):
         # 收音 DR rng 跟著 seed 重設(同一 seed → 同一聲學渲染序列)
         self._audio_rng = np.random.default_rng(
             (seed if seed is not None else 0) + 10_000)
+        self._cached_loc = None   # 新 episode 強制重渲染,不沿用上一 episode 的緩存
         self._target_xyz = target_xyz.copy()
 
         return self._build_obs(), {
@@ -423,11 +426,20 @@ class MuJoCoDobotEnv(BaseDobotEnv):
         # ---- 聲學定位(SAC 的眼睛)----
         # ⚠️ _block_xyz 只當 pyroomacoustics 發聲座標,不直接餵 policy。
         #    policy 拿到的是定位網路推論的 source_*,不是真值(requirement §3)。
+        # 降頻:每 perception_update_every 步才真渲染一次(渲染是 step 主要瓶頸),
+        #       中間沿用緩存。靜止聲源 + 緩慢手臂運動下幾乎不損資訊。
         if o.enable_source_azimuth or o.enable_source_range:
-            mic_world = np.array(
-                [self.data.site_xpos[sid] for sid in self._mic_site_ids])
-            loc = self.perception.localize(
-                mic_world, self._block_xyz, self._audio_rng)
+            need_render = (
+                self._cached_loc is None
+                or (self.current_step % max(1, o.perception_update_every) == 0)
+            )
+            if need_render:
+                mic_world = np.array(
+                    [self.data.site_xpos[sid] for sid in self._mic_site_ids])
+                self._cached_loc = self.perception.localize(
+                    mic_world, self._block_xyz, self._audio_rng,
+                    pyroom_ratio=o.env_pyroom_ratio)
+            loc = self._cached_loc
             if o.enable_source_azimuth:
                 obs["source_azimuth"] = loc["source_azimuth"]
             # source_range:config 要開、且權重真的有距離 head 才放

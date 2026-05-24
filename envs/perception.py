@@ -119,6 +119,7 @@ class AcousticPerception:
         mic_world: np.ndarray,
         source_xyz: np.ndarray,
         rng: np.random.Generator,
+        pyroom_ratio: float | None = None,
     ) -> dict[str, np.ndarray]:
         """從一次收音推論聲源方位(與距離)。
 
@@ -127,6 +128,7 @@ class AcousticPerception:
             source_xyz: (3,) 方塊聲源世界座標(只當 pyroomacoustics 的發聲點,
                         不是餵給 policy 的真值)
             rng: 該 env 的亂數產生器(DR 用,確保可重現)
+            pyroom_ratio: 覆寫混合比例(env 訓練傳 cfg.obs.env_pyroom_ratio)。None 用 config 預設。
 
         Returns:
             dict,一定有 "source_azimuth"(72,);
@@ -134,7 +136,8 @@ class AcousticPerception:
         """
         # 1) 合成多通道接收(pyroomacoustics 渲染;mic_world 為陣列當前世界座標)
         signals, _meta = synthesize_reception(
-            self.cfg, np.asarray(source_xyz), rng, mic_world=np.asarray(mic_world))
+            self.cfg, np.asarray(source_xyz), rng,
+            mic_world=np.asarray(mic_world), pyroom_ratio=pyroom_ratio)
         # 2) 帶通 → 特徵
         feats = extract_features(self.cfg, bandpass(self.cfg, signals))
         feat_t = torch.from_numpy(feats).float().unsqueeze(0).to(self.device)  # (1, feat_dim)

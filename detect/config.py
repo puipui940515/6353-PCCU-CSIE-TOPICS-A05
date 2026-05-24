@@ -129,6 +129,7 @@ class ObsConfig:
     可自由調區(改 = 只需調參,不破壞維度):
       - ranges 內各上下界
       - 各 enable_* 開關(關掉某項 → 該 key 不進 obs;關了仍算 breaking,SAC 要重訓)
+      - 聲學觀測效能參數(perception_update_every / env_pyroom_ratio,只影響速度/泛化,不動維度)
     """
     ranges: ObsRanges = field(default_factory=ObsRanges)
 
@@ -137,6 +138,17 @@ class ObsConfig:
     enable_base_to_tcp_dist: bool = True # 本體距離錨點(requirement §4.3)
     enable_source_azimuth: bool = True   # 聲學方位(取代 block_pose 的方向資訊)
     enable_source_range: bool = True     # 聲學遠近(go/no-go 沒過就設 False,退回只給方位)
+
+    # ---- SAC 訓練時的聲學觀測效能參數(不影響 obs 維度,只影響速度與泛化)----
+    # perception_update_every:每 K 個 env step 才真渲染一次 source_*,中間沿用緩存。
+    #   pyroomacoustics 渲染是 env step 的主要瓶頸(單次 ~100ms)。靜止聲源 + 緩慢手臂
+    #   運動下,相鄰 step 的 source_* 變化小,降頻幾乎不損資訊卻能快 ~K 倍。
+    #   K=10 → 50Hz 控制等於 5Hz 更新定位,對靜止方塊定位足夠。設 1 = 每步都渲染(最慢)。
+    perception_update_every: int = 10
+    # env_pyroom_ratio:SAC 訓練時,每次「真渲染」以此機率走 pyroomacoustics、其餘走自由場(快)。
+    #   獨立於 detect 的 source_dr.pyroom_ratio(訓眼睛用),兩階段比例需求不同故解耦。
+    #   不可設 0:SAC 從沒見過混響,Phase 2/真機一上真聲學會掉。建議 0.1-0.2。
+    env_pyroom_ratio: float = 0.15
 
     # 護欄:上帝視角方塊位置。預設 False = 不進 obs(本次需求)。
     # 設 True 會把 block_pose 塞回 obs,僅供 debug 對照,正式訓練務必 False。
@@ -193,6 +205,15 @@ class LocalizationConfig:
         # 契約一致性:source_range 開了,bin 數要合理
         if self.obs.enable_source_range:
             assert self.range_head.n_range_bins >= 2, "啟用 source_range 至少要 2 個 bin"
+
+        # SAC env 聲學觀測效能參數護欄
+        assert self.obs.perception_update_every >= 1, \
+            f"perception_update_every 須 >= 1,收到 {self.obs.perception_update_every}"
+        assert 0.0 <= self.obs.env_pyroom_ratio <= 1.0, \
+            f"env_pyroom_ratio 須在 [0,1],收到 {self.obs.env_pyroom_ratio}"
+        if self.obs.env_pyroom_ratio == 0.0:
+            print("⚠️  config 警告:env_pyroom_ratio=0,SAC 訓練全程自由場、從不見混響,"
+                  "Phase 2/真機一上 pyroomacoustics 可能掉。建議 ≥ 0.1")
 
         # 護欄:正式訓練不該開上帝視角
         if self.obs.enable_oracle_block_pose:
