@@ -17,7 +17,7 @@ env 不需要知道 detect 內部結構,只呼叫 localize() 拿 source_azimuth 
   有沒有距離 head:
     - 沒有 → 只輸出 source_azimuth,has_range=False(env 自動不放 source_range)
     - 有   → 同時輸出 source_range,has_range=True
-  未來 detect 加距離 head + pyroomacoustics 重訓後,只換權重檔,本層與 env 都不用改。
+  未來 detect 加距離/高度 head + pyroomacoustics 重訓後,只換權重檔,本層與 env 都不用改。
 """
 
 from __future__ import annotations
@@ -66,10 +66,12 @@ class AcousticPerception:
         self.device = torch.device(device)
         self.n_azimuth_bins = cfg.task.n_azimuth_bins
         self.n_range_bins = cfg.range_head.n_range_bins
+        self.n_height_bins = cfg.height_head.n_height_bins
 
-        # 建網路(目前 detect.model 只有方位 head)
+        # 建網路(依權重自動重建 head)
         self.net = build_net(cfg).to(self.device)
         self.has_range = False   # 預設無距離能力,載入時偵測
+        self.has_height = False
 
         if weights_path is not None:
             self._load_and_detect(weights_path)
@@ -91,15 +93,23 @@ class AcousticPerception:
         # train_gpu.py 存的格式是 {"model": state_dict, ...};也容許直接是 state_dict
         state = ckpt.get("model", ckpt) if isinstance(ckpt, dict) else ckpt
 
-        # 偵測距離 head:detect 加 head 後,state_dict 會多 range head 的 key
+        # 偵測距離/高度 head:state_dict 會多對應 head 的 key
         self.has_range = any("range" in k for k in state.keys())
+        self.has_height = any("height" in k for k in state.keys())
 
-        if self.has_range:
-            # 權重含距離 head → 用 with_range=True 重建網路(原本 build_net(cfg) 是單 head,
-            # 不重建會導致 forward 回單 tensor、localize 的雙 head unpack 失敗)。
-            self.net = build_net(self.cfg, with_range=True).to(self.device)
+        if self.has_range or self.has_height:
+            self.net = build_net(
+                self.cfg,
+                with_range=self.has_range,
+                with_height=self.has_height,
+            ).to(self.device)
             self.net.load_state_dict(state, strict=True)
-            print(f"✅ 載入定位權重(含距離 head): {path.name}")
+            caps = []
+            if self.has_range:
+                caps.append("距離")
+            if self.has_height:
+                caps.append("高度")
+            print(f"✅ 載入定位權重(含 {'/'.join(caps)} head): {path.name}")
         else:
             # 只有方位 head 的舊權重 → 維持單 head 網路
             self.net.load_state_dict(state, strict=True)
@@ -147,12 +157,22 @@ class AcousticPerception:
         result: dict[str, np.ndarray] = {}
 
         if self.has_range:
-            # 未來雙 head:net 回傳 (azimuth_logits, range_logits) 或含兩段的 tensor
-            azimuth_logits, range_logits = out
+            azimuth_logits = out[0]
+            range_logits = out[1]
             result["source_azimuth"] = _softmax_np(
                 azimuth_logits.squeeze(0).cpu().numpy())
             result["source_range"] = _softmax_np(
                 range_logits.squeeze(0).cpu().numpy())
+            if self.has_height:
+                height_logits = out[2]
+                result["source_height"] = _softmax_np(
+                    height_logits.squeeze(0).cpu().numpy())
+        elif self.has_height:
+            azimuth_logits, height_logits = out
+            result["source_azimuth"] = _softmax_np(
+                azimuth_logits.squeeze(0).cpu().numpy())
+            result["source_height"] = _softmax_np(
+                height_logits.squeeze(0).cpu().numpy())
         else:
             # 當前:單 head,只有方位
             result["source_azimuth"] = _softmax_np(out.squeeze(0).cpu().numpy())

@@ -1,0 +1,173 @@
+<svg viewBox="0 0 1280 1015" xmlns="http://www.w3.org/2000/svg" font-family="'Microsoft JhengHei','PingFang TC','Noto Sans CJK TC',sans-serif" role="img">
+<title>聲波定位抓取機械臂系統架構圖</title>
+<desc>分為資產管線、聲學感知預訓練、感知橋接、SAC 模擬環境、SAC 控制訓練、ROS2 部署六層的完整系統架構。</desc>
+<defs>
+<marker id="ah" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#475569"/></marker>
+<marker id="ahd" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#9ca3af"/></marker>
+</defs>
+<rect width="1280" height="1015" fill="#ffffff"/>
+
+<text x="640" y="34" font-size="21" font-weight="700" fill="#1e293b" text-anchor="middle">Dobot Magician 聲波定位抓取系統 — 整體架構</text>
+<text x="640" y="55" font-size="12" fill="#64748b" text-anchor="middle">無視覺前提下,以聲波/震動感測完成物件定位與抓取 · 由資產管線、感知預訓練、SAC 控制訓練至 ROS2 真機部署</text>
+
+<!-- ============ Band 1: 資產管線 ============ -->
+<rect x="40" y="74" width="1200" height="106" rx="9" fill="#eef2f6" stroke="#64748b" stroke-width="1.4"/>
+<text x="58" y="95" font-size="13" font-weight="700" fill="#334155">① 資產管線層　tools/ ＋ ros2_ws/dobot_description</text>
+<g font-size="10.3" fill="#475569">
+<rect x="60" y="106" width="278" height="58" rx="6" fill="#ffffff" stroke="#64748b" stroke-width="1.1"/>
+<text x="199" y="129" font-size="11.5" font-weight="700" fill="#334155" text-anchor="middle">prepare_dobot_assets.sh</text>
+<text x="199" y="148" text-anchor="middle">複製並改寫 URDF 路徑參照</text>
+<rect x="354" y="106" width="278" height="58" rx="6" fill="#ffffff" stroke="#64748b" stroke-width="1.1"/>
+<text x="493" y="129" font-size="11.5" font-weight="700" fill="#334155" text-anchor="middle">convert_dae_to_obj.py</text>
+<text x="493" y="148" text-anchor="middle">DAE mesh 轉 OBJ</text>
+<rect x="648" y="106" width="278" height="58" rx="6" fill="#ffffff" stroke="#64748b" stroke-width="1.1"/>
+<text x="787" y="129" font-size="11.5" font-weight="700" fill="#334155" text-anchor="middle">build_scene.py</text>
+<text x="787" y="148" text-anchor="middle">組裝 MuJoCo 場景 ＋ 6 麥 site</text>
+<rect x="942" y="106" width="278" height="58" rx="6" fill="#ffffff" stroke="#64748b" stroke-width="1.1"/>
+<text x="1081" y="129" font-size="11.5" font-weight="700" fill="#334155" text-anchor="middle">ros2_ws/dobot_description</text>
+<text x="1081" y="148" text-anchor="middle">URDF / mesh 來源</text>
+</g>
+
+<!-- ============ Band 2: 聲學感知預訓練 detect/ ============ -->
+<rect x="40" y="202" width="1200" height="212" rx="9" fill="#e8f1fd" stroke="#3b6fb5" stroke-width="1.4"/>
+<text x="58" y="223" font-size="13" font-weight="700" fill="#1e4e87">② 聲學感知預訓練層　detect/　(Stage 0.5,不接 ROS2)</text>
+<g font-size="10.2" fill="#3a5878">
+<rect x="60" y="234" width="373" height="72" rx="6" fill="#ffffff" stroke="#3b6fb5" stroke-width="1.1"/>
+<text x="246" y="256" font-size="11.5" font-weight="700" fill="#1e4e87" text-anchor="middle">config.py</text>
+<text x="246" y="275" text-anchor="middle">單一設定來源:麥陣列幾何、採樣率、</text>
+<text x="246" y="291" text-anchor="middle">DR 範圍、方位/距離/高度 bin 邊界</text>
+<rect x="453" y="234" width="373" height="72" rx="6" fill="#ffffff" stroke="#3b6fb5" stroke-width="1.1"/>
+<text x="639" y="256" font-size="11.5" font-weight="700" fill="#1e4e87" text-anchor="middle">signal_processing.py</text>
+<text x="639" y="275" text-anchor="middle">發聲合成 → pyroomacoustics / 自由場</text>
+<text x="639" y="291" text-anchor="middle">渲染 → 帶通濾波 → 相位差特徵 v2</text>
+<rect x="846" y="234" width="374" height="72" rx="6" fill="#ffffff" stroke="#3b6fb5" stroke-width="1.1"/>
+<text x="1033" y="256" font-size="11.5" font-weight="700" fill="#1e4e87" text-anchor="middle">env.py — LocalizationEnv</text>
+<text x="1033" y="275" text-anchor="middle">撒方塊、隨機自身位姿、障礙物遮擋,</text>
+<text x="1033" y="291" text-anchor="middle">產生 (特徵, 方位真值, meta)</text>
+
+<rect x="60" y="318" width="278" height="80" rx="6" fill="#ffffff" stroke="#3b6fb5" stroke-width="1.1"/>
+<text x="199" y="340" font-size="11.3" font-weight="700" fill="#1e4e87" text-anchor="middle">gen_dataset.py</text>
+<text x="199" y="359" text-anchor="middle">多進程平行生成</text>
+<text x="199" y="375" text-anchor="middle">聲學訓練/驗證資料</text>
+<text x="199" y="391" text-anchor="middle">輸出 .npz</text>
+<rect x="354" y="318" width="278" height="80" rx="6" fill="#ffffff" stroke="#3b6fb5" stroke-width="1.1"/>
+<text x="493" y="340" font-size="11.3" font-weight="700" fill="#1e4e87" text-anchor="middle">model.py — LocalizationNet</text>
+<text x="493" y="359" text-anchor="middle">共用 backbone MLP ＋</text>
+<text x="493" y="375" text-anchor="middle">方位 / 距離 / 高度 三 head</text>
+<text x="493" y="391" text-anchor="middle">(&lt; 200k 參數)</text>
+<rect x="648" y="318" width="278" height="80" rx="6" fill="#ffffff" stroke="#3b6fb5" stroke-width="1.1"/>
+<text x="787" y="340" font-size="11.3" font-weight="700" fill="#1e4e87" text-anchor="middle">train_gpu.py</text>
+<text x="787" y="359" text-anchor="middle">監督式訓練</text>
+<text x="787" y="375" text-anchor="middle">三 head CrossEntropy</text>
+<text x="787" y="391" text-anchor="middle">checkpoint / TensorBoard</text>
+<rect x="942" y="318" width="278" height="80" rx="6" fill="#fbfdff" stroke="#3b6fb5" stroke-width="1.1" stroke-dasharray="4 2"/>
+<text x="1081" y="340" font-size="11.3" font-weight="700" fill="#1e4e87" text-anchor="middle">分析工具</text>
+<text x="1081" y="359" text-anchor="middle">dataset_inspector.py</text>
+<text x="1081" y="375" text-anchor="middle">model_inspector.py</text>
+<text x="1081" y="391" text-anchor="middle">資料分布 / 模型特徵診斷</text>
+</g>
+
+<!-- ============ Band 3: 感知橋接 ============ -->
+<rect x="40" y="436" width="1200" height="92" rx="9" fill="#e3f5f1" stroke="#2f9e8f" stroke-width="1.4"/>
+<text x="58" y="457" font-size="13" font-weight="700" fill="#1f7a6f">③ 感知橋接層　envs/perception.py</text>
+<rect x="60" y="468" width="1160" height="48" rx="6" fill="#ffffff" stroke="#2f9e8f" stroke-width="1.1"/>
+<text x="640" y="488" font-size="11.5" font-weight="700" fill="#1f7a6f" text-anchor="middle">AcousticPerception</text>
+<text x="640" y="505" font-size="10.3" fill="#3a6b64" text-anchor="middle">載入凍結的定位權重 → 自動偵測距離/高度 head → localize() 回傳 source_azimuth / source_range / source_height 機率分布</text>
+
+<!-- ============ Band 4: SAC 模擬環境 ============ -->
+<rect x="40" y="550" width="1200" height="136" rx="9" fill="#fdf3e0" stroke="#c8881f" stroke-width="1.4"/>
+<text x="58" y="571" font-size="13" font-weight="700" fill="#9a6610">④ SAC 模擬環境層　envs/</text>
+<g font-size="10.2" fill="#7a5a1c">
+<rect x="60" y="582" width="373" height="86" rx="6" fill="#ffffff" stroke="#c8881f" stroke-width="1.1"/>
+<text x="246" y="604" font-size="11.5" font-weight="700" fill="#9a6610" text-anchor="middle">base_dobot_env.py</text>
+<text x="246" y="624" text-anchor="middle">依 config.obs_spec() 宣告</text>
+<text x="246" y="640" text-anchor="middle">Gym observation / action space</text>
+<text x="246" y="656" text-anchor="middle">(本體感測 ＋ 聲學定位)</text>
+<rect x="453" y="582" width="373" height="86" rx="6" fill="#ffffff" stroke="#c8881f" stroke-width="1.1"/>
+<text x="639" y="604" font-size="11.5" font-weight="700" fill="#9a6610" text-anchor="middle">mujoco_dobot_env.py</text>
+<text x="639" y="624" text-anchor="middle">MuJoCo 物理 (50Hz 控制 / 500Hz 物理)</text>
+<text x="639" y="640" text-anchor="middle">5-stage curriculum、stage-aware reward</text>
+<text x="639" y="656" text-anchor="middle">聲學觀測降頻緩存</text>
+<rect x="846" y="582" width="374" height="86" rx="6" fill="#ffffff" stroke="#c8881f" stroke-width="1.1"/>
+<text x="1033" y="604" font-size="11.5" font-weight="700" fill="#9a6610" text-anchor="middle">magician_scene.mjcf</text>
+<text x="1033" y="624" text-anchor="middle">MuJoCo 場景:Dobot 機械臂、地板、</text>
+<text x="1033" y="640" text-anchor="middle">方塊、目標區、6 顆麥克風 site</text>
+<text x="1033" y="656" text-anchor="middle">(由 ① 資產管線產生)</text>
+</g>
+
+<!-- ============ Band 5: SAC 控制訓練 ============ -->
+<rect x="40" y="708" width="1200" height="136" rx="9" fill="#f0eafb" stroke="#7c5bc0" stroke-width="1.4"/>
+<text x="58" y="729" font-size="13" font-weight="700" fill="#5b3f97">⑤ SAC 控制訓練層　training/ ＋ configs/</text>
+<g font-size="10.2" fill="#5a4a78">
+<rect x="60" y="740" width="278" height="86" rx="6" fill="#ffffff" stroke="#7c5bc0" stroke-width="1.1"/>
+<text x="199" y="762" font-size="11.3" font-weight="700" fill="#5b3f97" text-anchor="middle">train_sac.py</text>
+<text x="199" y="781" text-anchor="middle">stable_baselines3 SAC</text>
+<text x="199" y="797" text-anchor="middle">curriculum 訓練主程式</text>
+<text x="199" y="813" text-anchor="middle">stage 間 resume 接續</text>
+<rect x="354" y="740" width="278" height="86" rx="6" fill="#ffffff" stroke="#7c5bc0" stroke-width="1.1"/>
+<text x="493" y="762" font-size="11.3" font-weight="700" fill="#5b3f97" text-anchor="middle">sac_policy.py</text>
+<text x="493" y="781" text-anchor="middle">LayerNorm</text>
+<text x="493" y="797" text-anchor="middle">CombinedExtractor</text>
+<text x="493" y="813" text-anchor="middle">多輸入特徵抽取</text>
+<rect x="648" y="740" width="278" height="86" rx="6" fill="#ffffff" stroke="#7c5bc0" stroke-width="1.1"/>
+<text x="787" y="762" font-size="11.3" font-weight="700" fill="#5b3f97" text-anchor="middle">configs/sac_stage1-5.yaml</text>
+<text x="787" y="781" text-anchor="middle">各階段 reward 權重、</text>
+<text x="787" y="797" text-anchor="middle">SAC 超參數、訓練步數</text>
+<text x="787" y="813" text-anchor="middle">curriculum 排程</text>
+<rect x="942" y="740" width="278" height="86" rx="6" fill="#ffffff" stroke="#7c5bc0" stroke-width="1.1"/>
+<text x="1081" y="762" font-size="11.3" font-weight="700" fill="#5b3f97" text-anchor="middle">eval_policy.py / test_env.py</text>
+<text x="1081" y="781" text-anchor="middle">policy 評估、環境健康檢查、</text>
+<text x="1081" y="797" text-anchor="middle">check_perception_in_env.py</text>
+<text x="1081" y="813" text-anchor="middle">感知接入一致性檢查</text>
+</g>
+
+<!-- ============ Band 6: ROS2 部署 ============ -->
+<rect x="40" y="866" width="1200" height="106" rx="9" fill="#f4f4f5" stroke="#9ca3af" stroke-width="1.4" stroke-dasharray="6 3"/>
+<text x="58" y="887" font-size="13" font-weight="700" fill="#52525b">⑥ 部署層　ros2_ws/magician_ros2　—　ROS2 Humble ＋ MoveIt2　(Phase 2/3 真機,規劃中)</text>
+<g font-size="10.3" fill="#52525b">
+<rect x="60" y="898" width="278" height="58" rx="6" fill="#ffffff" stroke="#9ca3af" stroke-width="1.1"/>
+<text x="199" y="921" font-size="11.5" font-weight="700" fill="#3f3f46" text-anchor="middle">dobot_bringup</text>
+<text x="199" y="940" text-anchor="middle">ROS2 啟動與控制節點</text>
+<rect x="354" y="898" width="278" height="58" rx="6" fill="#ffffff" stroke="#9ca3af" stroke-width="1.1"/>
+<text x="493" y="921" font-size="11.5" font-weight="700" fill="#3f3f46" text-anchor="middle">dobot_demos</text>
+<text x="493" y="940" text-anchor="middle">PTP / pick &amp; place 示範</text>
+<rect x="648" y="898" width="278" height="58" rx="6" fill="#ffffff" stroke="#9ca3af" stroke-width="1.1"/>
+<text x="787" y="921" font-size="11.5" font-weight="700" fill="#3f3f46" text-anchor="middle">dobot_control_panel</text>
+<text x="787" y="940" text-anchor="middle">rqt 控制面板</text>
+<rect x="942" y="898" width="278" height="58" rx="6" fill="#ffffff" stroke="#9ca3af" stroke-width="1.1"/>
+<text x="1081" y="921" font-size="11.5" font-weight="700" fill="#3f3f46" text-anchor="middle">Dobot Magician 真機</text>
+<text x="1081" y="940" text-anchor="middle">4 軸機械臂 ＋ 夾爪</text>
+</g>
+
+<!-- ============ 連接箭頭與產出物 ============ -->
+<!-- band1 -> band4 : magician_scene.mjcf (右側長箭頭) -->
+<path d="M1252,127 H1264 V616 H1228" fill="none" stroke="#475569" stroke-width="1.6" marker-end="url(#ah)"/>
+<rect x="1180" y="350" width="120" height="38" rx="6" fill="#fff7d6" stroke="#b8901f" stroke-width="1"/>
+<text x="1240" y="366" font-size="9.6" font-weight="700" fill="#8a6a14" text-anchor="middle">產出物</text>
+<text x="1240" y="380" font-size="9.3" fill="#8a6a14" text-anchor="middle">magician_scene.mjcf</text>
+
+<!-- band2 -> band3 : best_eval.pt -->
+<path d="M150,414 V436" fill="none" stroke="#475569" stroke-width="1.8" marker-end="url(#ah)"/>
+<rect x="200" y="412" width="210" height="26" rx="6" fill="#fff7d6" stroke="#b8901f" stroke-width="1"/>
+<text x="305" y="429" font-size="9.7" font-weight="700" fill="#8a6a14" text-anchor="middle">產出物　best_eval.pt　定位網路權重</text>
+
+<!-- band3 -> band4 -->
+<path d="M150,528 V550" fill="none" stroke="#475569" stroke-width="1.8" marker-end="url(#ah)"/>
+<rect x="200" y="527" width="190" height="24" rx="6" fill="#ffffff" stroke="#2f9e8f" stroke-width="1"/>
+<text x="295" y="543" font-size="9.6" fill="#1f7a6f" text-anchor="middle">凍結定位網路注入為「SAC 的眼睛」</text>
+
+<!-- band4 -> band5 -->
+<path d="M150,686 V708" fill="none" stroke="#475569" stroke-width="1.8" marker-end="url(#ah)"/>
+<rect x="200" y="685" width="190" height="24" rx="6" fill="#ffffff" stroke="#c8881f" stroke-width="1"/>
+<text x="295" y="701" font-size="9.6" fill="#9a6610" text-anchor="middle">提供 Gym 介面供 SAC 互動採樣</text>
+
+<!-- band5 -> band6 -->
+<path d="M150,844 V866" fill="none" stroke="#9ca3af" stroke-width="1.8" stroke-dasharray="5 3" marker-end="url(#ahd)"/>
+<rect x="200" y="843" width="240" height="24" rx="6" fill="#fff7d6" stroke="#b8901f" stroke-width="1"/>
+<text x="320" y="859" font-size="9.6" fill="#8a6a14" text-anchor="middle">產出物　SAC policy (best_model.zip)　→　sim-to-real</text>
+
+<!-- band2 內部資料流註記 -->
+<path d="M199,398 V410 M199,410 H300 V330 H338" fill="none" stroke="#7d9bc4" stroke-width="1.3" marker-end="url(#ah)" stroke-dasharray="3 2"/>
+<rect x="940" y="300" width="280" height="18" rx="5" fill="#e8f1fd" stroke="#3b6fb5" stroke-width="0.9"/>
+<text x="1080" y="313" font-size="9" fill="#1e4e87" text-anchor="middle">分析工具讀取 .npz 與 best_eval.pt,不參與訓練主線</text>
+</svg>

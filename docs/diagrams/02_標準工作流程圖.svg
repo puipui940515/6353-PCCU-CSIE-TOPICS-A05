@@ -1,0 +1,168 @@
+<svg viewBox="0 0 1280 700" xmlns="http://www.w3.org/2000/svg" font-family="'Microsoft JhengHei','PingFang TC','Noto Sans CJK TC',sans-serif" role="img">
+<title>標準工作流程圖</title>
+<desc>從環境啟動、MuJoCo 場景建立、感知資料生成、感知模型訓練、感知接入檢查、SAC 五階段訓練到評估與真機部署的標準工作流程。</desc>
+<defs>
+<marker id="a" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#475569"/></marker>
+<marker id="ag" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#b0846a"/></marker>
+</defs>
+<rect width="1280" height="700" fill="#ffffff"/>
+
+<text x="640" y="32" font-size="21" font-weight="700" fill="#1e293b" text-anchor="middle">Dobot 專案標準工作流程圖</text>
+<text x="640" y="52" font-size="12" fill="#64748b" text-anchor="middle">由場景建立 → 感知預訓練 → 感知接入 → SAC Curriculum 控制訓練 → 評估部署 · 每個決策節點未達標即回該階段調整重跑</text>
+
+<!-- =================== ROW 1 =================== -->
+<!-- START -->
+<rect x="28" y="131" width="104" height="68" rx="10" fill="#e3f2e6" stroke="#3f9d5a" stroke-width="1.5"/>
+<text x="80" y="159" font-size="12" font-weight="700" fill="#2f7a45" text-anchor="middle">環境啟動</text>
+<text x="80" y="178" font-size="8.8" fill="#3a6b49" text-anchor="middle">source</text>
+<text x="80" y="190" font-size="8.8" fill="#3a6b49" text-anchor="middle">setup_env.sh</text>
+
+<!-- A -->
+<rect x="279" y="99" width="150" height="132" rx="8" fill="#ffffff" stroke="#64748b" stroke-width="1.3"/>
+<rect x="279" y="99" width="6" height="132" rx="3" fill="#64748b"/>
+<text x="356" y="123" font-size="11.5" font-weight="700" fill="#334155" text-anchor="middle">① 建立 MuJoCo 場景</text>
+<g font-size="9.3" fill="#475569" text-anchor="middle">
+<text x="356" y="148">prepare_dobot_assets.sh</text>
+<text x="356" y="167">convert_dae_to_obj.py</text>
+<text x="356" y="186">build_scene.py</text>
+<text x="356" y="210">test_scene.py　場景驗證</text>
+</g>
+
+<!-- D1 -->
+<polygon points="634,115 692,165 634,215 576,165" fill="#fdf3e0" stroke="#c8881f" stroke-width="1.3"/>
+<text x="634" y="162" font-size="10" font-weight="700" fill="#9a6610" text-anchor="middle">場景含臂/方塊</text>
+<text x="634" y="176" font-size="10" font-weight="700" fill="#9a6610" text-anchor="middle">/目標區?</text>
+
+<!-- B -->
+<rect x="839" y="99" width="150" height="132" rx="8" fill="#ffffff" stroke="#3b6fb5" stroke-width="1.3"/>
+<rect x="839" y="99" width="6" height="132" rx="3" fill="#3b6fb5"/>
+<text x="916" y="123" font-size="11.5" font-weight="700" fill="#1e4e87" text-anchor="middle">② 生成感知資料</text>
+<g font-size="9.3" fill="#3a5878" text-anchor="middle">
+<text x="916" y="148">gen_dataset.py 多進程平行</text>
+<text x="916" y="167">→ train.npz / eval.npz</text>
+<text x="916" y="186">dataset_inspector.py</text>
+<text x="916" y="210">檢查方位/距離/高度分布</text>
+</g>
+
+<!-- D2 -->
+<polygon points="1194,115 1252,165 1194,215 1136,165" fill="#fdf3e0" stroke="#c8881f" stroke-width="1.3"/>
+<text x="1194" y="162" font-size="10" font-weight="700" fill="#9a6610" text-anchor="middle">資料分布</text>
+<text x="1194" y="176" font-size="10" font-weight="700" fill="#9a6610" text-anchor="middle">健康?</text>
+
+<!-- =================== ROW 2 =================== -->
+<!-- C -->
+<rect x="1102" y="294" width="150" height="132" rx="8" fill="#ffffff" stroke="#3b6fb5" stroke-width="1.3"/>
+<rect x="1102" y="294" width="6" height="132" rx="3" fill="#3b6fb5"/>
+<text x="1179" y="318" font-size="11.5" font-weight="700" fill="#1e4e87" text-anchor="middle">③ 訓練感知模型</text>
+<g font-size="9.3" fill="#3a5878" text-anchor="middle">
+<text x="1179" y="343">train_gpu.py</text>
+<text x="1179" y="362">監督訓練 (三 head)</text>
+<text x="1179" y="381">model_inspector.py 診斷</text>
+<text x="1179" y="405">→ best_eval.pt 定位權重</text>
+</g>
+
+<!-- D3 -->
+<polygon points="897,310 955,360 897,410 839,360" fill="#fdf3e0" stroke="#c8881f" stroke-width="1.3"/>
+<text x="897" y="350" font-size="10" font-weight="700" fill="#9a6610" text-anchor="middle">命中率 &amp;</text>
+<text x="897" y="364" font-size="10" font-weight="700" fill="#9a6610" text-anchor="middle">距離/高度</text>
+<text x="897" y="378" font-size="10" font-weight="700" fill="#9a6610" text-anchor="middle">go/no-go?</text>
+
+<!-- D box -->
+<rect x="542" y="294" width="150" height="132" rx="8" fill="#ffffff" stroke="#2f9e8f" stroke-width="1.3"/>
+<rect x="542" y="294" width="6" height="132" rx="3" fill="#2f9e8f"/>
+<text x="619" y="318" font-size="11.5" font-weight="700" fill="#1f7a6f" text-anchor="middle">④ 感知接入檢查</text>
+<g font-size="9.3" fill="#3a6b64" text-anchor="middle">
+<text x="619" y="345">test_env.py 環境健檢</text>
+<text x="619" y="366">check_perception_in_env.py</text>
+<text x="619" y="392">驗證感知 ↔ 環境幾何</text>
+</g>
+
+<!-- D4 -->
+<polygon points="337,310 395,360 337,410 279,360" fill="#fdf3e0" stroke="#c8881f" stroke-width="1.3"/>
+<text x="337" y="357" font-size="10" font-weight="700" fill="#9a6610" text-anchor="middle">感知輸出與</text>
+<text x="337" y="371" font-size="10" font-weight="700" fill="#9a6610" text-anchor="middle">環境一致?</text>
+
+<!-- =================== ROW 3 =================== -->
+<!-- E -->
+<rect x="262" y="489" width="150" height="132" rx="8" fill="#ffffff" stroke="#7c5bc0" stroke-width="1.3"/>
+<rect x="262" y="489" width="6" height="132" rx="3" fill="#7c5bc0"/>
+<text x="339" y="513" font-size="11.5" font-weight="700" fill="#5b3f97" text-anchor="middle">⑤ SAC Curriculum</text>
+<g font-size="9.3" fill="#5a4a78" text-anchor="middle">
+<text x="339" y="538">stage 1 → 2 → 3 → 4 → 5</text>
+<text x="339" y="557">對準→抓取→抓起→放置→泛化</text>
+<text x="339" y="576">逐階段 resume 接續</text>
+<text x="339" y="600">configs/sac_stage1-5.yaml</text>
+</g>
+
+<!-- D5 -->
+<polygon points="617,505 675,555 617,605 559,555" fill="#fdf3e0" stroke="#c8881f" stroke-width="1.3"/>
+<text x="617" y="552" font-size="10" font-weight="700" fill="#9a6610" text-anchor="middle">該 stage</text>
+<text x="617" y="566" font-size="10" font-weight="700" fill="#9a6610" text-anchor="middle">成功率達標?</text>
+
+<!-- F -->
+<rect x="822" y="489" width="150" height="132" rx="8" fill="#ffffff" stroke="#7c5bc0" stroke-width="1.3"/>
+<rect x="822" y="489" width="6" height="132" rx="3" fill="#7c5bc0"/>
+<text x="899" y="513" font-size="11.5" font-weight="700" fill="#5b3f97" text-anchor="middle">⑥ 評估與輸出</text>
+<g font-size="9.3" fill="#5a4a78" text-anchor="middle">
+<text x="899" y="540">eval_policy.py</text>
+<text x="899" y="561">episode 成功率 / reward</text>
+<text x="899" y="588">→ SAC policy best_model.zip</text>
+</g>
+
+<!-- END -->
+<rect x="1119" y="521" width="104" height="68" rx="10" fill="#f4f4f5" stroke="#9ca3af" stroke-width="1.5" stroke-dasharray="5 3"/>
+<text x="1171" y="546" font-size="11.5" font-weight="700" fill="#52525b" text-anchor="middle">真機部署</text>
+<text x="1171" y="564" font-size="8.6" fill="#52525b" text-anchor="middle">ROS2 Humble</text>
+<text x="1171" y="576" font-size="8.6" fill="#52525b" text-anchor="middle">+ MoveIt2</text>
+<text x="1171" y="587" font-size="8" fill="#7d7d85" text-anchor="middle">(Phase 2/3 規劃)</text>
+
+<!-- =================== 主流程箭頭 =================== -->
+<g stroke="#475569" stroke-width="1.9" fill="none">
+<path d="M132,165 H276" marker-end="url(#a)"/>
+<path d="M429,165 H573" marker-end="url(#a)"/>
+<path d="M692,165 H836" marker-end="url(#a)"/>
+<path d="M989,165 H1133" marker-end="url(#a)"/>
+<path d="M1194,215 V294" marker-end="url(#a)"/>
+<path d="M1102,360 H958" marker-end="url(#a)"/>
+<path d="M839,360 H695" marker-end="url(#a)"/>
+<path d="M542,360 H398" marker-end="url(#a)"/>
+<path d="M337,410 V489" marker-end="url(#a)"/>
+<path d="M412,555 H556" marker-end="url(#a)"/>
+<path d="M675,555 H819" marker-end="url(#a)"/>
+<path d="M972,555 H1116" marker-end="url(#a)"/>
+</g>
+<!-- 是 標籤 -->
+<g font-size="9" font-weight="700" fill="#3f9d5a">
+<text x="710" y="158" text-anchor="middle">是</text>
+<text x="1210" y="258" text-anchor="middle">是</text>
+<text x="855" y="353" text-anchor="middle">是</text>
+<text x="353" y="453" text-anchor="middle">是</text>
+<text x="693" y="548" text-anchor="middle">是</text>
+</g>
+
+<!-- =================== 否 · 回饋迴圈 =================== -->
+<g stroke="#b0846a" stroke-width="1.4" fill="none" stroke-dasharray="4 3">
+<path d="M634,115 C634,72 470,72 405,99" marker-end="url(#ag)"/>
+<path d="M1194,115 C1194,70 1010,70 952,99" marker-end="url(#ag)"/>
+<path d="M897,410 C897,452 1060,452 1140,426" marker-end="url(#ag)"/>
+<path d="M337,410 C337,448 500,448 562,426" marker-end="url(#ag)"/>
+<path d="M617,605 C617,648 430,648 360,621" marker-end="url(#ag)"/>
+</g>
+<g font-size="8.6" font-weight="700" fill="#a06a4a">
+<text x="470" y="66" text-anchor="middle">否</text>
+<text x="1010" y="64" text-anchor="middle">否</text>
+<text x="1010" y="460" text-anchor="middle">否</text>
+<text x="500" y="456" text-anchor="middle">否</text>
+<text x="430" y="660" text-anchor="middle">否</text>
+</g>
+
+<!-- legend -->
+<rect x="28" y="262" width="232" height="86" rx="8" fill="#fbfcfd" stroke="#d4d9e0" stroke-width="1"/>
+<text x="44" y="282" font-size="10" font-weight="700" fill="#334155">圖例</text>
+<rect x="44" y="291" width="22" height="13" rx="3" fill="#ffffff" stroke="#64748b" stroke-width="1.1"/>
+<text x="74" y="301" font-size="9" fill="#475569">流程步驟(色條標示所屬階段)</text>
+<polygon points="55,313 66,321 55,329 44,321" fill="#fdf3e0" stroke="#c8881f" stroke-width="1"/>
+<text x="74" y="324" font-size="9" fill="#475569">決策節點</text>
+<path d="M44,340 h22" stroke="#b0846a" stroke-width="1.4" stroke-dasharray="4 3"/>
+<text x="74" y="343" font-size="9" fill="#475569">否 = 修正後重跑該階段</text>
+</svg>

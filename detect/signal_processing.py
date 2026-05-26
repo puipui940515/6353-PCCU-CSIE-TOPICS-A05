@@ -62,6 +62,7 @@ def synthesize_reception(
     rng: np.random.Generator,
     mic_world: np.ndarray | None = None,
     pyroom_ratio: float | None = None,
+    obstacle_gains: np.ndarray | None = None,
 ) -> tuple[np.ndarray, dict]:
     """模擬 N_mics 通道接收。
 
@@ -73,6 +74,7 @@ def synthesize_reception(
                    (陣列裝末端會隨手臂動)。None 則退回 cfg.audio.mic_layout(僅 smoke test)。
         pyroom_ratio: 覆寫混合比例。None 用 cfg.source_dr.pyroom_ratio(訓眼睛用);
                       env 訓練時傳 cfg.obs.env_pyroom_ratio(兩階段比例解耦)。
+        obstacle_gains: (n_mics,) channel 衰減係數,用於近似障礙物遮擋/材質隨機。
 
     Returns:
         signals: (n_mics, n_samples)
@@ -104,6 +106,13 @@ def synthesize_reception(
         signals = _freefield_fallback(
             cfg, np.asarray(source_xyz, dtype=np.float64), mics, src_sig)
         meta["render_type"] = "freefield"
+
+    if obstacle_gains is not None:
+        gains = np.asarray(obstacle_gains, dtype=np.float32)
+        assert gains.shape == (cfg.audio.n_mics,), \
+            f"obstacle_gains 應為 ({cfg.audio.n_mics},),收到 {gains.shape}"
+        signals *= gains[:, None]
+        meta["obstacle_gains"] = [round(float(x), 4) for x in gains]
 
     # --- 加超聲頻段內噪聲(由 SNR 控制)---
     snr_db = rng.uniform(*cfg.source_dr.snr_db_range)

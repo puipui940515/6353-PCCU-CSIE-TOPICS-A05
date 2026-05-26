@@ -68,6 +68,16 @@ class SourceDRConfig:
     # 0.25 = 3:1(自由場:混響)。混響佔比越低生成越快,但距離 head 的真實聲學線索越少,
     # go/no-go 可能更難過 → 距離命中率接近隨機時,提高此值是第一個該試的調整。
     pyroom_ratio: float = 0.25
+    # 障礙物遮擋:以每個 mic channel 的隨機衰減近似繞射/遮蔽。
+    obstacle_prob: float = 0.35
+    obstacle_count_range: tuple[int, int] = (0, 3)
+    obstacle_attenuation_range: tuple[float, float] = (0.25, 0.85)
+    obstacle_global_attenuation_range: tuple[float, float] = (0.65, 1.0)
+    # 自身移動/旋轉:資料生成時把 mic array 和聲源一起轉到世界座標,
+    # label 仍用相對 array frame,用來訓練模型對本體 pose 不敏感。
+    self_translation_xy_range: tuple[float, float] = (-0.08, 0.08)
+    self_translation_z_range: tuple[float, float] = (-0.02, 0.08)
+    self_yaw_range_deg: tuple[float, float] = (-180.0, 180.0)
 
 
 @dataclass
@@ -78,7 +88,7 @@ class TaskConfig:
     # 工作空間範圍(env.sample_block_position 撒方塊用;相對陣列中心)
     # ⟵核對 對齊機械臂工作半徑 0.32m;距離 bin 邊界(0.08/0.16/0.24)應落在此範圍內
     workspace_r_range: tuple[float, float] = (0.05, 0.30)   # ⟵核對 陣列中心到方塊水平距離
-    workspace_z_range: tuple[float, float] = (-0.05, 0.05)  # ⟵核對 垂直範圍(水平任務取小)
+    workspace_z_range: tuple[float, float] = (0.00, 0.18)  # 聲源高度範圍,高度 head label 用
 
 
 # ============================================================
@@ -98,6 +108,21 @@ class RangeHeadConfig:
 
     @property
     def n_range_bins(self) -> int:
+        return len(self.bin_edges_m) + 1
+
+
+@dataclass
+class HeightHeadConfig:
+    """source_height 高度 head 設定。
+
+    bin 邊界 = 聲源相對 mic array frame 的 z 高度(m)。目前模型輸出分類,
+    與距離 head 一樣用 CrossEntropy 訓練,比直接回歸更穩。
+    """
+    bin_edges_m: tuple[float, ...] = (0.04, 0.08, 0.12, 0.16)
+    height_ce_weight: float = 0.8
+
+    @property
+    def n_height_bins(self) -> int:
         return len(self.bin_edges_m) + 1
 
 
@@ -138,6 +163,7 @@ class ObsConfig:
     enable_base_to_tcp_dist: bool = True # 本體距離錨點(requirement §4.3)
     enable_source_azimuth: bool = True   # 聲學方位(取代 block_pose 的方向資訊)
     enable_source_range: bool = True     # 聲學遠近(go/no-go 沒過就設 False,退回只給方位)
+    enable_source_height: bool = True    # 聲學高度分類(新增,舊權重無此 head 時自動不輸出)
 
     # ---- SAC 訓練時的聲學觀測效能參數(不影響 obs 維度,只影響速度與泛化)----
     # perception_update_every:每 K 個 env step 才真渲染一次 source_*,中間沿用緩存。
@@ -166,6 +192,7 @@ class LocalizationConfig:
     source_dr: SourceDRConfig = field(default_factory=SourceDRConfig)
     task: TaskConfig = field(default_factory=TaskConfig)
     range_head: RangeHeadConfig = field(default_factory=RangeHeadConfig)
+    height_head: HeightHeadConfig = field(default_factory=HeightHeadConfig)
     obs: ObsConfig = field(default_factory=ObsConfig)
 
     def __post_init__(self) -> None:
@@ -182,6 +209,8 @@ class LocalizationConfig:
         assert dr.freq_hz_range[1] < nyq, f"發聲頻率上限須 < fs/2({nyq})"
         assert 0.0 <= dr.pyroom_ratio <= 1.0, \
             f"pyroom_ratio 須在 [0,1],收到 {dr.pyroom_ratio}"
+        assert 0.0 <= dr.obstacle_prob <= 1.0, \
+            f"obstacle_prob 須在 [0,1],收到 {dr.obstacle_prob}"
 
         # 陣列幾何與 n_mics 一致
         assert len(a.mic_layout) == a.n_mics, \
@@ -205,6 +234,10 @@ class LocalizationConfig:
         # 契約一致性:source_range 開了,bin 數要合理
         if self.obs.enable_source_range:
             assert self.range_head.n_range_bins >= 2, "啟用 source_range 至少要 2 個 bin"
+        if self.obs.enable_source_height:
+            h_edges = self.height_head.bin_edges_m
+            assert list(h_edges) == sorted(h_edges), f"height bin 須遞增,收到 {h_edges}"
+            assert self.height_head.n_height_bins >= 2, "啟用 source_height 至少要 2 個 bin"
 
         # SAC env 聲學觀測效能參數護欄
         assert self.obs.perception_update_every >= 1, \
@@ -239,6 +272,8 @@ class LocalizationConfig:
             spec["source_azimuth"] = self.task.n_azimuth_bins
         if o.enable_source_range:
             spec["source_range"] = self.range_head.n_range_bins
+        if o.enable_source_height:
+            spec["source_height"] = self.height_head.n_height_bins
         if o.enable_oracle_block_pose:
             spec["block_pose"] = 7
         return spec
@@ -254,6 +289,7 @@ if __name__ == "__main__":
     print(f"n_mics            = {cfg.audio.n_mics}")
     print(f"n_azimuth_bins    = {cfg.task.n_azimuth_bins}")
     print(f"n_range_bins      = {cfg.range_head.n_range_bins}")
+    print(f"n_height_bins     = {cfg.height_head.n_height_bins}")
     print(f"range bin 邊界(m) = {cfg.range_head.bin_edges_m}")
     print(f"obs 各項維度      = {cfg.obs_spec()}")
     total = sum(cfg.obs_spec().values())

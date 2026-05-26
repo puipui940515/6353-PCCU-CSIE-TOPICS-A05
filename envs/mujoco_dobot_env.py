@@ -219,6 +219,11 @@ class MuJoCoDobotEnv(BaseDobotEnv):
                   "自動關閉 source_range(退回只給方位)。")
             self.cfg.obs.enable_source_range = False
             self.observation_space = self._build_observation_space(self.cfg)
+        if self.cfg.obs.enable_source_height and not self.perception.has_height:
+            print("⚠️  MuJoCoDobotEnv:config 要 source_height,但定位權重無高度 head,"
+                  "自動關閉 source_height。")
+            self.cfg.obs.enable_source_height = False
+            self.observation_space = self._build_observation_space(self.cfg)
         # 收音 DR 用的 rng,reset(seed) 時重設,確保可重現(Instructions §5)
         self._audio_rng = np.random.default_rng(0)
         # 聲學觀測降頻緩存:每 perception_update_every 步才真渲染一次,中間沿用。
@@ -428,7 +433,7 @@ class MuJoCoDobotEnv(BaseDobotEnv):
         #    policy 拿到的是定位網路推論的 source_*,不是真值(requirement §3)。
         # 降頻:每 perception_update_every 步才真渲染一次(渲染是 step 主要瓶頸),
         #       中間沿用緩存。靜止聲源 + 緩慢手臂運動下幾乎不損資訊。
-        if o.enable_source_azimuth or o.enable_source_range:
+        if o.enable_source_azimuth or o.enable_source_range or o.enable_source_height:
             need_render = (
                 self._cached_loc is None
                 or (self.current_step % max(1, o.perception_update_every) == 0)
@@ -445,6 +450,8 @@ class MuJoCoDobotEnv(BaseDobotEnv):
             # source_range:config 要開、且權重真的有距離 head 才放
             if o.enable_source_range and "source_range" in loc:
                 obs["source_range"] = loc["source_range"]
+            if o.enable_source_height and "source_height" in loc:
+                obs["source_height"] = loc["source_height"]
 
         # ---- 上帝視角(預設關;僅 debug)----
         if o.enable_oracle_block_pose:

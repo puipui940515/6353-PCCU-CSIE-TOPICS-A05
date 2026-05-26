@@ -1,0 +1,847 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Editable Gantt Chart</title>
+  <style>
+    :root {
+      --bg: #f7f8fb;
+      --panel: #ffffff;
+      --ink: #1f2937;
+      --muted: #6b7280;
+      --line: #d9dee8;
+      --line-soft: #eef1f6;
+      --accent: #0f766e;
+      --accent-2: #b91c1c;
+      --shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+      --row-h: 44px;
+      --left-w: 360px;
+      --day-w: 34px;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: "Segoe UI", "Noto Sans TC", Arial, sans-serif;
+      letter-spacing: 0;
+    }
+
+    button, input, select, textarea {
+      font: inherit;
+    }
+
+    .app {
+      height: 100vh;
+      display: grid;
+      grid-template-rows: auto 1fr;
+    }
+
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--line);
+      box-shadow: var(--shadow);
+      z-index: 5;
+    }
+
+    .title {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      min-width: 220px;
+      margin-right: 8px;
+    }
+
+    .title strong {
+      font-size: 18px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .title span {
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .icon-btn, .text-btn {
+      height: 34px;
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--ink);
+      border-radius: 6px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .icon-btn {
+      width: 34px;
+      font-size: 18px;
+    }
+
+    .text-btn {
+      padding: 0 12px;
+      font-size: 13px;
+    }
+
+    .icon-btn:hover, .text-btn:hover {
+      border-color: #a9b4c5;
+      background: #f9fafb;
+    }
+
+    .primary {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+
+    .primary:hover {
+      background: #0b645e;
+      border-color: #0b645e;
+    }
+
+    .danger {
+      color: var(--accent-2);
+    }
+
+    .spacer { flex: 1; }
+
+    .zoom {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 220px;
+    }
+
+    .zoom input {
+      width: 140px;
+      accent-color: var(--accent);
+    }
+
+    .zoom-value {
+      width: 46px;
+      color: var(--muted);
+      font-size: 12px;
+      text-align: right;
+    }
+
+    .board {
+      min-height: 0;
+      overflow: auto;
+      padding: 16px;
+    }
+
+    .gantt {
+      min-width: 980px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: var(--shadow);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: var(--left-w) 1fr;
+      width: max-content;
+      min-width: 100%;
+    }
+
+    .left-head, .time-head {
+      position: sticky;
+      top: 0;
+      z-index: 3;
+      height: 58px;
+      background: #fbfcfe;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .left-head {
+      left: 0;
+      display: grid;
+      grid-template-columns: 34px 1.6fr 96px 96px;
+      align-items: center;
+      border-right: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .left-head > div,
+    .task-cell > div {
+      padding: 0 8px;
+      min-width: 0;
+    }
+
+    .time-head {
+      overflow: hidden;
+    }
+
+    .months, .days {
+      display: grid;
+      width: max-content;
+    }
+
+    .months {
+      height: 26px;
+      border-bottom: 1px solid var(--line-soft);
+    }
+
+    .month {
+      border-right: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .days {
+      height: 31px;
+    }
+
+    .day {
+      width: var(--day-w);
+      border-right: 1px solid var(--line-soft);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .day.weekend {
+      background: #f3f5f9;
+    }
+
+    .task-cell {
+      position: sticky;
+      left: 0;
+      z-index: 2;
+      height: var(--row-h);
+      display: grid;
+      grid-template-columns: 34px 1.6fr 96px 96px;
+      align-items: center;
+      background: #fff;
+      border-right: 1px solid var(--line);
+      border-bottom: 1px solid var(--line-soft);
+    }
+
+    .row-index {
+      color: var(--muted);
+      font-size: 12px;
+      text-align: center;
+    }
+
+    .task-input, .date-input {
+      width: 100%;
+      height: 30px;
+      border: 1px solid transparent;
+      border-radius: 5px;
+      background: transparent;
+      padding: 0 7px;
+      color: var(--ink);
+    }
+
+    .task-input:focus, .date-input:focus {
+      outline: none;
+      border-color: #9cc7c3;
+      background: #f6fbfa;
+    }
+
+    .timeline-row {
+      position: relative;
+      height: var(--row-h);
+      border-bottom: 1px solid var(--line-soft);
+      background-image:
+        linear-gradient(to right, var(--line-soft) 1px, transparent 1px);
+      background-size: var(--day-w) 100%;
+    }
+
+    .timeline-row.weekend-bg {
+      background-color: #fff;
+    }
+
+    .bar {
+      position: absolute;
+      top: 8px;
+      height: 28px;
+      border-radius: 6px;
+      background: var(--bar-color);
+      box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.16), 0 2px 6px rgba(15, 23, 42, 0.12);
+      cursor: grab;
+      min-width: 12px;
+    }
+
+    .bar:active {
+      cursor: grabbing;
+    }
+
+    .bar-label {
+      color: #fff;
+      font-size: 12px;
+      line-height: 28px;
+      padding: 0 9px;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      pointer-events: none;
+    }
+
+    .handle {
+      position: absolute;
+      top: 0;
+      width: 8px;
+      height: 100%;
+      cursor: ew-resize;
+    }
+
+    .handle.left { left: 0; }
+    .handle.right { right: 0; }
+
+    .delete-row {
+      width: 24px;
+      height: 24px;
+      border: 0;
+      background: transparent;
+      color: #9ca3af;
+      cursor: pointer;
+      border-radius: 4px;
+    }
+
+    .delete-row:hover {
+      color: var(--accent-2);
+      background: #fff1f2;
+    }
+
+    .today-line {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: #dc2626;
+      opacity: 0.7;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .dialog {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 0;
+      width: min(760px, calc(100vw - 32px));
+      box-shadow: var(--shadow);
+    }
+
+    .dialog::backdrop {
+      background: rgba(15, 23, 42, 0.34);
+    }
+
+    .dialog-head {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      font-weight: 700;
+    }
+
+    .dialog-body {
+      padding: 14px;
+    }
+
+    textarea {
+      width: 100%;
+      height: 320px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 10px;
+      resize: vertical;
+      font-family: Consolas, monospace;
+      font-size: 12px;
+    }
+
+    .dialog-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      padding: 12px 14px;
+      border-top: 1px solid var(--line);
+    }
+
+    @media (max-width: 820px) {
+      :root { --left-w: 300px; --day-w: 30px; }
+      .toolbar { flex-wrap: wrap; }
+      .title { width: 100%; }
+      .zoom { min-width: 180px; }
+      .left-head, .task-cell { grid-template-columns: 30px 1fr 82px 82px; }
+      .date-input { font-size: 12px; padding: 0 4px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="toolbar">
+      <div class="title">
+        <strong>專題甘特圖</strong>
+        <span id="rangeLabel"></span>
+      </div>
+      <button class="text-btn primary" id="addTask" title="新增任務">＋ 任務</button>
+      <button class="icon-btn" id="fitToday" title="回到今天">⌖</button>
+      <button class="icon-btn" id="undoBtn" title="復原">↶</button>
+      <button class="icon-btn" id="redoBtn" title="重做">↷</button>
+      <div class="spacer"></div>
+      <div class="zoom">
+        <button class="icon-btn" id="zoomOut" title="縮小">−</button>
+        <input id="zoomSlider" type="range" min="18" max="76" value="34" />
+        <button class="icon-btn" id="zoomIn" title="放大">＋</button>
+        <span class="zoom-value" id="zoomValue"></span>
+      </div>
+      <button class="text-btn" id="exportBtn" title="匯出 JSON">匯出</button>
+      <button class="text-btn" id="importBtn" title="匯入 JSON">匯入</button>
+      <button class="text-btn danger" id="resetBtn" title="重設範例">重設</button>
+    </div>
+
+    <div class="board" id="board">
+      <div class="gantt">
+        <div class="grid" id="grid">
+          <div class="left-head">
+            <div>#</div>
+            <div>任務</div>
+            <div>開始</div>
+            <div>結束</div>
+          </div>
+          <div class="time-head" id="timeHead">
+            <div class="months" id="months"></div>
+            <div class="days" id="days"></div>
+          </div>
+          <div id="leftRows"></div>
+          <div id="timelineRows"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <dialog class="dialog" id="jsonDialog">
+    <div class="dialog-head" id="dialogTitle">JSON</div>
+    <div class="dialog-body">
+      <textarea id="jsonText" spellcheck="false"></textarea>
+    </div>
+    <div class="dialog-actions">
+      <button class="text-btn" id="copyJson">複製</button>
+      <button class="text-btn primary" id="applyJson">套用</button>
+      <button class="text-btn" id="closeDialog">關閉</button>
+    </div>
+  </dialog>
+
+  <script>
+    const DAY_MS = 24 * 60 * 60 * 1000;
+    const STORAGE_KEY = "dobot_project_gantt_v1";
+    const colors = ["#0f766e", "#2563eb", "#9333ea", "#c2410c", "#be123c", "#047857", "#4f46e5"];
+
+    function uid() {
+      if (window.crypto && typeof window.crypto.randomUUID === "function") {
+        return window.crypto.randomUUID();
+      }
+      return `task_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+    }
+
+    const sampleTasks = [
+      { id: uid(), name: "專題需求確認", start: "2026-05-25", end: "2026-05-28", color: colors[0] },
+      { id: uid(), name: "聲學資料生成與驗證", start: "2026-05-29", end: "2026-06-08", color: colors[1] },
+      { id: uid(), name: "感知模型訓練", start: "2026-06-05", end: "2026-06-18", color: colors[2] },
+      { id: uid(), name: "pygame Demo 整合", start: "2026-06-12", end: "2026-06-22", color: colors[3] },
+      { id: uid(), name: "論文圖表與實驗數據整理", start: "2026-06-18", end: "2026-06-30", color: colors[4] },
+    ];
+
+    let state = loadState();
+    let undoStack = [];
+    let redoStack = [];
+    let activeJsonMode = "export";
+
+    const els = {
+      board: document.getElementById("board"),
+      grid: document.getElementById("grid"),
+      months: document.getElementById("months"),
+      days: document.getElementById("days"),
+      leftRows: document.getElementById("leftRows"),
+      timelineRows: document.getElementById("timelineRows"),
+      rangeLabel: document.getElementById("rangeLabel"),
+      zoomSlider: document.getElementById("zoomSlider"),
+      zoomValue: document.getElementById("zoomValue"),
+      jsonDialog: document.getElementById("jsonDialog"),
+      jsonText: document.getElementById("jsonText"),
+      dialogTitle: document.getElementById("dialogTitle"),
+      applyJson: document.getElementById("applyJson"),
+    };
+
+    function loadState() {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed.tasks)) return parsed;
+        } catch {}
+      }
+      return { dayWidth: 34, tasks: sampleTasks };
+    }
+
+    function saveState() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
+
+    function snapshot() {
+      undoStack.push(JSON.stringify(state));
+      if (undoStack.length > 80) undoStack.shift();
+      redoStack = [];
+    }
+
+    function restore(serialized) {
+      state = JSON.parse(serialized);
+      saveState();
+      render();
+    }
+
+    function parseDate(value) {
+      const [y, m, d] = value.split("-").map(Number);
+      return new Date(y, m - 1, d);
+    }
+
+    function formatDate(date) {
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, "0");
+      const d = String(date.getDate()).padStart(2, "0");
+      return `${y}-${m}-${d}`;
+    }
+
+    function addDays(value, days) {
+      const d = typeof value === "string" ? parseDate(value) : new Date(value);
+      d.setDate(d.getDate() + days);
+      return formatDate(d);
+    }
+
+    function diffDays(a, b) {
+      return Math.round((parseDate(b) - parseDate(a)) / DAY_MS);
+    }
+
+    function clampTask(task) {
+      if (parseDate(task.end) < parseDate(task.start)) task.end = task.start;
+    }
+
+    function getBounds() {
+      const starts = state.tasks.map(t => parseDate(t.start));
+      const ends = state.tasks.map(t => parseDate(t.end));
+      const today = new Date();
+      const min = new Date(Math.min(...starts, today));
+      const max = new Date(Math.max(...ends, today));
+      min.setDate(min.getDate() - 7);
+      max.setDate(max.getDate() + 14);
+      return { start: formatDate(min), end: formatDate(max), totalDays: diffDays(formatDate(min), formatDate(max)) + 1 };
+    }
+
+    function renderHeader(bounds) {
+      const dayW = state.dayWidth;
+      document.documentElement.style.setProperty("--day-w", `${dayW}px`);
+      els.zoomSlider.value = dayW;
+      els.zoomValue.textContent = `${dayW}px`;
+      els.rangeLabel.textContent = `${bounds.start} 至 ${bounds.end}`;
+      els.days.innerHTML = "";
+      els.months.innerHTML = "";
+      els.days.style.gridTemplateColumns = `repeat(${bounds.totalDays}, ${dayW}px)`;
+
+      const monthSpans = [];
+      let currentMonth = "";
+      let count = 0;
+      for (let i = 0; i < bounds.totalDays; i++) {
+        const d = parseDate(addDays(bounds.start, i));
+        const key = `${d.getFullYear()}-${d.getMonth()}`;
+        if (currentMonth && key !== currentMonth) {
+          monthSpans.push({ key: currentMonth, count });
+          count = 0;
+        }
+        currentMonth = key;
+        count++;
+
+        const day = document.createElement("div");
+        day.className = "day";
+        if (d.getDay() === 0 || d.getDay() === 6) day.classList.add("weekend");
+        day.textContent = d.getDate();
+        els.days.appendChild(day);
+      }
+      monthSpans.push({ key: currentMonth, count });
+      els.months.style.gridTemplateColumns = monthSpans.map(m => `${m.count * dayW}px`).join(" ");
+      monthSpans.forEach(m => {
+        const [year, month] = m.key.split("-").map(Number);
+        const div = document.createElement("div");
+        div.className = "month";
+        div.textContent = `${year}/${String(month + 1).padStart(2, "0")}`;
+        els.months.appendChild(div);
+      });
+    }
+
+    function renderRows(bounds) {
+      els.leftRows.innerHTML = "";
+      els.timelineRows.innerHTML = "";
+      els.grid.style.gridTemplateRows = `58px repeat(${state.tasks.length}, var(--row-h))`;
+      const timelineWidth = bounds.totalDays * state.dayWidth;
+
+      state.tasks.forEach((task, index) => {
+        const left = document.createElement("div");
+        left.className = "task-cell";
+
+        const rowIndex = document.createElement("div");
+        rowIndex.className = "row-index";
+        const remove = document.createElement("button");
+        remove.className = "delete-row";
+        remove.textContent = "×";
+        remove.title = `刪除第 ${index + 1} 項`;
+        remove.addEventListener("click", () => {
+          snapshot();
+          state.tasks = state.tasks.filter(t => t.id !== task.id);
+          if (!state.tasks.length) {
+            const today = formatDate(new Date());
+            state.tasks.push({ id: uid(), name: "新增任務", start: today, end: addDays(today, 4), color: colors[0] });
+          }
+          saveState();
+          render();
+        });
+        rowIndex.appendChild(remove);
+
+        const nameWrap = document.createElement("div");
+        const name = document.createElement("input");
+        name.className = "task-input";
+        name.value = task.name;
+        name.addEventListener("change", () => {
+          snapshot();
+          task.name = name.value.trim() || "未命名任務";
+          saveState();
+          render();
+        });
+        nameWrap.appendChild(name);
+
+        const startWrap = document.createElement("div");
+        const start = document.createElement("input");
+        start.className = "date-input";
+        start.type = "date";
+        start.value = task.start;
+        start.addEventListener("change", () => {
+          snapshot();
+          task.start = start.value;
+          clampTask(task);
+          saveState();
+          render();
+        });
+        startWrap.appendChild(start);
+
+        const endWrap = document.createElement("div");
+        const end = document.createElement("input");
+        end.className = "date-input";
+        end.type = "date";
+        end.value = task.end;
+        end.addEventListener("change", () => {
+          snapshot();
+          task.end = end.value;
+          clampTask(task);
+          saveState();
+          render();
+        });
+        endWrap.appendChild(end);
+
+        left.append(rowIndex, nameWrap, startWrap, endWrap);
+        els.leftRows.appendChild(left);
+
+        const row = document.createElement("div");
+        row.className = "timeline-row";
+        row.style.width = `${timelineWidth}px`;
+
+        const startOffset = diffDays(bounds.start, task.start);
+        const duration = diffDays(task.start, task.end) + 1;
+        const bar = document.createElement("div");
+        bar.className = "bar";
+        bar.style.setProperty("--bar-color", task.color || colors[index % colors.length]);
+        bar.style.left = `${startOffset * state.dayWidth}px`;
+        bar.style.width = `${duration * state.dayWidth}px`;
+        bar.dataset.id = task.id;
+
+        const label = document.createElement("div");
+        label.className = "bar-label";
+        label.textContent = task.name;
+
+        const hLeft = document.createElement("div");
+        hLeft.className = "handle left";
+        hLeft.dataset.mode = "resize-left";
+        const hRight = document.createElement("div");
+        hRight.className = "handle right";
+        hRight.dataset.mode = "resize-right";
+
+        bar.append(label, hLeft, hRight);
+        addBarEvents(bar, task, bounds);
+        row.appendChild(bar);
+
+        const todayOffset = diffDays(bounds.start, formatDate(new Date()));
+        if (todayOffset >= 0 && todayOffset < bounds.totalDays) {
+          const today = document.createElement("div");
+          today.className = "today-line";
+          today.style.left = `${todayOffset * state.dayWidth}px`;
+          row.appendChild(today);
+        }
+
+        els.timelineRows.appendChild(row);
+      });
+    }
+
+    function addBarEvents(bar, task, bounds) {
+      bar.addEventListener("pointerdown", event => {
+        const mode = event.target.dataset.mode || "move";
+        const startX = event.clientX;
+        const originalStart = task.start;
+        const originalEnd = task.end;
+        const originalDuration = diffDays(originalStart, originalEnd) + 1;
+        let changed = false;
+        bar.setPointerCapture(event.pointerId);
+
+        function onMove(moveEvent) {
+          const deltaDays = Math.round((moveEvent.clientX - startX) / state.dayWidth);
+          if (deltaDays === 0) return;
+          changed = true;
+          if (mode === "move") {
+            task.start = addDays(originalStart, deltaDays);
+            task.end = addDays(originalEnd, deltaDays);
+          } else if (mode === "resize-left") {
+            const newStart = addDays(originalStart, deltaDays);
+            if (diffDays(newStart, originalEnd) >= 0) task.start = newStart;
+          } else if (mode === "resize-right") {
+            const newEnd = addDays(originalEnd, deltaDays);
+            if (diffDays(originalStart, newEnd) >= 0) task.end = newEnd;
+          }
+          clampTask(task);
+
+          const startOffset = diffDays(bounds.start, task.start);
+          const duration = Math.max(1, diffDays(task.start, task.end) + 1);
+          bar.style.left = `${startOffset * state.dayWidth}px`;
+          bar.style.width = `${duration * state.dayWidth}px`;
+        }
+
+        function onUp(upEvent) {
+          bar.releasePointerCapture(upEvent.pointerId);
+          bar.removeEventListener("pointermove", onMove);
+          bar.removeEventListener("pointerup", onUp);
+          if (changed) {
+            undoStack.push(JSON.stringify({
+              ...state,
+              tasks: state.tasks.map(t => t.id === task.id ? { ...t, start: originalStart, end: originalEnd } : t)
+            }));
+            redoStack = [];
+            saveState();
+            render();
+          }
+        }
+
+        bar.addEventListener("pointermove", onMove);
+        bar.addEventListener("pointerup", onUp);
+      });
+    }
+
+    function render() {
+      state.tasks.forEach(clampTask);
+      const bounds = getBounds();
+      renderHeader(bounds);
+      renderRows(bounds);
+    }
+
+    document.getElementById("addTask").addEventListener("click", () => {
+      snapshot();
+      const today = formatDate(new Date());
+      state.tasks.push({
+        id: uid(),
+        name: "新增任務",
+        start: today,
+        end: addDays(today, 4),
+        color: colors[state.tasks.length % colors.length],
+      });
+      saveState();
+      render();
+    });
+
+    document.getElementById("zoomIn").addEventListener("click", () => setZoom(state.dayWidth + 4));
+    document.getElementById("zoomOut").addEventListener("click", () => setZoom(state.dayWidth - 4));
+    els.zoomSlider.addEventListener("input", () => setZoom(Number(els.zoomSlider.value), false));
+
+    function setZoom(value, push = true) {
+      if (push) snapshot();
+      state.dayWidth = Math.max(18, Math.min(76, value));
+      saveState();
+      render();
+    }
+
+    document.getElementById("fitToday").addEventListener("click", () => {
+      const todayOffset = diffDays(getBounds().start, formatDate(new Date())) * state.dayWidth;
+      els.board.scrollLeft = Math.max(0, todayOffset - 240);
+    });
+
+    document.getElementById("undoBtn").addEventListener("click", () => {
+      if (!undoStack.length) return;
+      redoStack.push(JSON.stringify(state));
+      restore(undoStack.pop());
+    });
+
+    document.getElementById("redoBtn").addEventListener("click", () => {
+      if (!redoStack.length) return;
+      undoStack.push(JSON.stringify(state));
+      restore(redoStack.pop());
+    });
+
+    document.getElementById("resetBtn").addEventListener("click", () => {
+      snapshot();
+      state = { dayWidth: 34, tasks: sampleTasks.map(t => ({ ...t, id: uid() })) };
+      saveState();
+      render();
+    });
+
+    document.getElementById("exportBtn").addEventListener("click", () => {
+      activeJsonMode = "export";
+      els.dialogTitle.textContent = "匯出 JSON";
+      els.jsonText.value = JSON.stringify(state, null, 2);
+      els.applyJson.style.display = "none";
+      els.jsonDialog.showModal();
+    });
+
+    document.getElementById("importBtn").addEventListener("click", () => {
+      activeJsonMode = "import";
+      els.dialogTitle.textContent = "匯入 JSON";
+      els.jsonText.value = JSON.stringify(state, null, 2);
+      els.applyJson.style.display = "";
+      els.jsonDialog.showModal();
+    });
+
+    document.getElementById("closeDialog").addEventListener("click", () => els.jsonDialog.close());
+
+    document.getElementById("copyJson").addEventListener("click", async () => {
+      await navigator.clipboard.writeText(els.jsonText.value);
+    });
+
+    els.applyJson.addEventListener("click", () => {
+      if (activeJsonMode !== "import") return;
+      const parsed = JSON.parse(els.jsonText.value);
+      if (!Array.isArray(parsed.tasks)) throw new Error("JSON must contain tasks array");
+      snapshot();
+      state = parsed;
+      saveState();
+      render();
+      els.jsonDialog.close();
+    });
+
+    render();
+  </script>
+</body>
+</html>

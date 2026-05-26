@@ -1,0 +1,821 @@
+{
+  "perception": {
+    "detect\\runs\\gpu_run\\tb\\events.out.tfevents.1779650388.DESKTOP-NQ4O1S3.1397382.0": {
+      "train/loss": {
+        "first_step": 1,
+        "first_value": 7.073814392089844,
+        "last_step": 500000,
+        "last_value": 3.5411195755004883,
+        "points": 500000
+      },
+      "train/loss_azimuth": {
+        "first_step": 1,
+        "first_value": 4.314672470092773,
+        "last_step": 500000,
+        "last_value": 1.581089973449707,
+        "points": 500000
+      },
+      "train/loss_range": {
+        "first_step": 1,
+        "first_value": 1.4465327262878418,
+        "last_step": 500000,
+        "last_value": 0.9238525032997131,
+        "points": 500000
+      },
+      "train/loss_height": {
+        "first_step": 1,
+        "first_value": 1.640761137008667,
+        "last_step": 500000,
+        "last_value": 1.295221209526062,
+        "points": 500000
+      },
+      "eval/hit_rate": {
+        "first_step": 50000,
+        "first_value": 0.6800999641418457,
+        "last_step": 500000,
+        "last_value": 0.7017499804496765,
+        "points": 10
+      },
+      "eval/mean_err_deg": {
+        "first_step": 50000,
+        "first_value": 23.75,
+        "last_step": 500000,
+        "last_value": 21.886749267578125,
+        "points": 10
+      },
+      "eval/range_hit_rate": {
+        "first_step": 50000,
+        "first_value": 0.5399500131607056,
+        "last_step": 500000,
+        "last_value": 0.5638499855995178,
+        "points": 10
+      },
+      "eval/height_hit_rate": {
+        "first_step": 50000,
+        "first_value": 0.40264999866485596,
+        "last_step": 500000,
+        "last_value": 0.4251999855041504,
+        "points": 10
+      },
+      "final/by_sig/chirp_hit_rate": {
+        "first_step": 500000,
+        "first_value": 0.7826412916183472,
+        "last_step": 500000,
+        "last_value": 0.7826412916183472,
+        "points": 1
+      },
+      "final/by_sig/cw_hit_rate": {
+        "first_step": 500000,
+        "first_value": 0.5553094148635864,
+        "last_step": 500000,
+        "last_value": 0.5553094148635864,
+        "points": 1
+      },
+      "final/by_sig/pulse_train_hit_rate": {
+        "first_step": 500000,
+        "first_value": 0.7706617712974548,
+        "last_step": 500000,
+        "last_value": 0.7706617712974548,
+        "points": 1
+      },
+      "final/by_render/freefield_hit_rate": {
+        "first_step": 500000,
+        "first_value": 0.6812354922294617,
+        "last_step": 500000,
+        "last_value": 0.6812354922294617,
+        "points": 1
+      },
+      "final/by_render/pyroom_hit_rate": {
+        "first_step": 500000,
+        "first_value": 0.7642062902450562,
+        "last_step": 500000,
+        "last_value": 0.7642062902450562,
+        "points": 1
+      },
+      "final/obstacle/clear_hit_rate": {
+        "first_step": 500000,
+        "first_value": 0.7340770959854126,
+        "last_step": 500000,
+        "last_value": 0.7340770959854126,
+        "points": 1
+      },
+      "final/obstacle/obstacle_hit_rate": {
+        "first_step": 500000,
+        "first_value": 0.6099808216094971,
+        "last_step": 500000,
+        "last_value": 0.6099808216094971,
+        "points": 1
+      }
+    },
+    "detect\\runs\\gpu\\tb\\events.out.tfevents.1779651650.DESKTOP-NQ4O1S3.1461270.0": {
+      "train/loss": {
+        "first_step": 500001,
+        "first_value": 3.178624153137207,
+        "last_step": 1500000,
+        "last_value": 3.0494678020477295,
+        "points": 1000000
+      },
+      "train/loss_azimuth": {
+        "first_step": 500001,
+        "first_value": 1.2519385814666748,
+        "last_step": 1500000,
+        "last_value": 1.2731410264968872,
+        "points": 1000000
+      },
+      "train/loss_range": {
+        "first_step": 500001,
+        "first_value": 0.9485868811607361,
+        "last_step": 1500000,
+        "last_value": 0.8479350209236145,
+        "points": 1000000
+      },
+      "train/loss_height": {
+        "first_step": 500001,
+        "first_value": 1.222623348236084,
+        "last_step": 1500000,
+        "last_value": 1.1604896783828735,
+        "points": 1000000
+      },
+      "eval/hit_rate": {
+        "first_step": 600000,
+        "first_value": 0.7048499584197998,
+        "last_step": 1500000,
+        "last_value": 0.7046999931335449,
+        "points": 10
+      },
+      "eval/mean_err_deg": {
+        "first_step": 600000,
+        "first_value": 21.708999633789062,
+        "last_step": 1500000,
+        "last_value": 21.667499542236328,
+        "points": 10
+      },
+      "eval/range_hit_rate": {
+        "first_step": 600000,
+        "first_value": 0.5656999945640564,
+        "last_step": 1500000,
+        "last_value": 0.5704999566078186,
+        "points": 10
+      },
+      "eval/height_hit_rate": {
+        "first_step": 600000,
+        "first_value": 0.42389997839927673,
+        "last_step": 1500000,
+        "last_value": 0.4274500012397766,
+        "points": 10
+      },
+      "final/by_sig/chirp_hit_rate": {
+        "first_step": 1500000,
+        "first_value": 0.7859391570091248,
+        "last_step": 1500000,
+        "last_value": 0.7859391570091248,
+        "points": 1
+      },
+      "final/by_sig/cw_hit_rate": {
+        "first_step": 1500000,
+        "first_value": 0.5609215497970581,
+        "last_step": 1500000,
+        "last_value": 0.5609215497970581,
+        "points": 1
+      },
+      "final/by_sig/pulse_train_hit_rate": {
+        "first_step": 1500000,
+        "first_value": 0.7705093026161194,
+        "last_step": 1500000,
+        "last_value": 0.7705093026161194,
+        "points": 1
+      },
+      "final/by_render/freefield_hit_rate": {
+        "first_step": 1500000,
+        "first_value": 0.6845566034317017,
+        "last_step": 1500000,
+        "last_value": 0.6845566034317017,
+        "points": 1
+      },
+      "final/by_render/pyroom_hit_rate": {
+        "first_step": 1500000,
+        "first_value": 0.7660263180732727,
+        "last_step": 1500000,
+        "last_value": 0.7660263180732727,
+        "points": 1
+      },
+      "final/obstacle/clear_hit_rate": {
+        "first_step": 1500000,
+        "first_value": 0.7385395765304565,
+        "last_step": 1500000,
+        "last_value": 0.7385395765304565,
+        "points": 1
+      },
+      "final/obstacle/obstacle_hit_rate": {
+        "first_step": 1500000,
+        "first_value": 0.6086372137069702,
+        "last_step": 1500000,
+        "last_value": 0.6086372137069702,
+        "points": 1
+      }
+    },
+    "detect\\runs\\runs_舊backup\\gpu_run\\tb\\events.out.tfevents.1779623303.DESKTOP-NQ4O1S3.1516067.0": {
+      "train/loss": {
+        "first_step": 1,
+        "first_value": 5.767114162445068,
+        "last_step": 500000,
+        "last_value": 1.610440969467163,
+        "points": 500000
+      },
+      "train/loss_azimuth": {
+        "first_step": 1,
+        "first_value": 4.3476715087890625,
+        "last_step": 500000,
+        "last_value": 0.8108094930648804,
+        "points": 500000
+      },
+      "train/loss_range": {
+        "first_step": 1,
+        "first_value": 1.4194425344467163,
+        "last_step": 500000,
+        "last_value": 0.7996314764022827,
+        "points": 500000
+      },
+      "eval/hit_rate": {
+        "first_step": 50000,
+        "first_value": 0.703540027141571,
+        "last_step": 500000,
+        "last_value": 0.7349333167076111,
+        "points": 10
+      },
+      "eval/mean_err_deg": {
+        "first_step": 50000,
+        "first_value": 6.510900020599365,
+        "last_step": 500000,
+        "last_value": 5.569033145904541,
+        "points": 10
+      },
+      "eval/range_hit_rate": {
+        "first_step": 50000,
+        "first_value": 0.6006933450698853,
+        "last_step": 500000,
+        "last_value": 0.6471666693687439,
+        "points": 10
+      }
+    },
+    "detect\\runs\\runs_舊backup\\gpu_run\\tb\\events.out.tfevents.1779623280.DESKTOP-NQ4O1S3.1515834.0": {
+      "train/loss": {
+        "first_step": 1,
+        "first_value": 5.767114162445068,
+        "last_step": 5000,
+        "last_value": 2.2470574378967285,
+        "points": 5000
+      },
+      "train/loss_azimuth": {
+        "first_step": 1,
+        "first_value": 4.3476715087890625,
+        "last_step": 5000,
+        "last_value": 1.2299021482467651,
+        "points": 5000
+      },
+      "train/loss_range": {
+        "first_step": 1,
+        "first_value": 1.4194425344467163,
+        "last_step": 5000,
+        "last_value": 1.017155408859253,
+        "points": 5000
+      },
+      "eval/hit_rate": {
+        "first_step": 500,
+        "first_value": 0.5007200241088867,
+        "last_step": 5000,
+        "last_value": 0.6434199810028076,
+        "points": 10
+      },
+      "eval/mean_err_deg": {
+        "first_step": 500,
+        "first_value": 13.004966735839844,
+        "last_step": 5000,
+        "last_value": 8.492300033569336,
+        "points": 10
+      },
+      "eval/range_hit_rate": {
+        "first_step": 500,
+        "first_value": 0.4667666554450989,
+        "last_step": 5000,
+        "last_value": 0.5434066653251648,
+        "points": 10
+      }
+    },
+    "detect\\runs\\runs_舊backup\\gpu_run\\tb\\events.out.tfevents.1779622571.DESKTOP-NQ4O1S3.1512112.0": {
+      "train/loss": {
+        "first_step": 1,
+        "first_value": 5.760039329528809,
+        "last_step": 10000,
+        "last_value": 1.6309233903884888,
+        "points": 10000
+      },
+      "train/loss_azimuth": {
+        "first_step": 1,
+        "first_value": 4.349977016448975,
+        "last_step": 10000,
+        "last_value": 1.075972080230713,
+        "points": 10000
+      },
+      "train/loss_range": {
+        "first_step": 1,
+        "first_value": 1.410062551498413,
+        "last_step": 10000,
+        "last_value": 0.5549513101577759,
+        "points": 10000
+      },
+      "eval/hit_rate": {
+        "first_step": 1000,
+        "first_value": 0.45001333951950073,
+        "last_step": 10000,
+        "last_value": 0.471946656703949,
+        "points": 10
+      },
+      "eval/mean_err_deg": {
+        "first_step": 1000,
+        "first_value": 16.81170082092285,
+        "last_step": 10000,
+        "last_value": 18.815532684326172,
+        "points": 10
+      },
+      "eval/range_hit_rate": {
+        "first_step": 1000,
+        "first_value": 0.5148000121116638,
+        "last_step": 10000,
+        "last_value": 0.5240600109100342,
+        "points": 10
+      }
+    },
+    "detect\\runs\\runs_舊backup\\gpu\\tb\\events.out.tfevents.1779631573.DESKTOP-NQ4O1S3.10162.0": {
+      "train/loss": {
+        "first_step": 82001,
+        "first_value": 1.7123569250106812,
+        "last_step": 85000,
+        "last_value": 1.6479980945587158,
+        "points": 3000
+      },
+      "train/loss_azimuth": {
+        "first_step": 82001,
+        "first_value": 0.8337462544441223,
+        "last_step": 85000,
+        "last_value": 0.8114538788795471,
+        "points": 3000
+      },
+      "train/loss_range": {
+        "first_step": 82001,
+        "first_value": 0.8786106705665588,
+        "last_step": 85000,
+        "last_value": 0.8365442752838135,
+        "points": 3000
+      },
+      "eval/hit_rate": {
+        "first_step": 82200,
+        "first_value": 0.8808666467666626,
+        "last_step": 84900,
+        "last_value": 0.8818133473396301,
+        "points": 10
+      },
+      "eval/mean_err_deg": {
+        "first_step": 82200,
+        "first_value": 6.3998332023620605,
+        "last_step": 84900,
+        "last_value": 6.385900020599365,
+        "points": 10
+      },
+      "eval/range_hit_rate": {
+        "first_step": 82200,
+        "first_value": 0.60944664478302,
+        "last_step": 84900,
+        "last_value": 0.6074933409690857,
+        "points": 10
+      }
+    },
+    "detect\\runs\\runs_舊backup\\gpu\\tb\\events.out.tfevents.1779625409.DESKTOP-NQ4O1S3.1532546.0": {},
+    "detect\\runs\\runs_舊backup\\gpu\\tb\\events.out.tfevents.1779625458.DESKTOP-NQ4O1S3.1532834.0": {
+      "train/loss": {
+        "first_step": 43001,
+        "first_value": 1.9197428226470947,
+        "last_step": 46000,
+        "last_value": 1.8670334815979004,
+        "points": 3000
+      },
+      "train/loss_azimuth": {
+        "first_step": 43001,
+        "first_value": 0.9771749973297119,
+        "last_step": 46000,
+        "last_value": 0.9390864372253418,
+        "points": 3000
+      },
+      "train/loss_range": {
+        "first_step": 43001,
+        "first_value": 0.9425678849220276,
+        "last_step": 46000,
+        "last_value": 0.9279470443725586,
+        "points": 3000
+      },
+      "eval/hit_rate": {
+        "first_step": 43200,
+        "first_value": 0.6671133041381836,
+        "last_step": 45900,
+        "last_value": 0.6750333309173584,
+        "points": 10
+      },
+      "eval/mean_err_deg": {
+        "first_step": 43200,
+        "first_value": 7.923399925231934,
+        "last_step": 45900,
+        "last_value": 7.6367998123168945,
+        "points": 10
+      },
+      "eval/range_hit_rate": {
+        "first_step": 43200,
+        "first_value": 0.5543199777603149,
+        "last_step": 45900,
+        "last_value": 0.5645399689674377,
+        "points": 10
+      }
+    },
+    "detect\\runs\\runs_舊backup\\gpu\\tb\\events.out.tfevents.1779627013.DESKTOP-NQ4O1S3.1541421.0": {
+      "train/loss": {
+        "first_step": 49001,
+        "first_value": 1.827711582183838,
+        "last_step": 79000,
+        "last_value": 1.861950397491455,
+        "points": 30000
+      },
+      "train/loss_azimuth": {
+        "first_step": 49001,
+        "first_value": 0.9172496199607849,
+        "last_step": 79000,
+        "last_value": 0.9855732321739197,
+        "points": 30000
+      },
+      "train/loss_range": {
+        "first_step": 49001,
+        "first_value": 0.910461962223053,
+        "last_step": 79000,
+        "last_value": 0.8763771057128906,
+        "points": 30000
+      },
+      "eval/hit_rate": {
+        "first_step": 51000,
+        "first_value": 0.8673733472824097,
+        "last_step": 78000,
+        "last_value": 0.8800466656684875,
+        "points": 10
+      },
+      "eval/mean_err_deg": {
+        "first_step": 51000,
+        "first_value": 7.334233283996582,
+        "last_step": 78000,
+        "last_value": 6.479300022125244,
+        "points": 10
+      },
+      "eval/range_hit_rate": {
+        "first_step": 51000,
+        "first_value": 0.5769666433334351,
+        "last_step": 78000,
+        "last_value": 0.6053199768066406,
+        "points": 10
+      }
+    },
+    "detect\\runs\\runs_舊backup\\gpu\\tb\\events.out.tfevents.1779630141.DESKTOP-NQ4O1S3.3442.0": {
+      "train/loss": {
+        "first_step": 79001,
+        "first_value": 1.6998703479766846,
+        "last_step": 82000,
+        "last_value": 1.6607005596160889,
+        "points": 3000
+      },
+      "train/loss_azimuth": {
+        "first_step": 79001,
+        "first_value": 0.8378148078918457,
+        "last_step": 82000,
+        "last_value": 0.822750985622406,
+        "points": 3000
+      },
+      "train/loss_range": {
+        "first_step": 79001,
+        "first_value": 0.8620554804801941,
+        "last_step": 82000,
+        "last_value": 0.8379495143890381,
+        "points": 3000
+      },
+      "eval/hit_rate": {
+        "first_step": 79200,
+        "first_value": 0.8800466656684875,
+        "last_step": 81900,
+        "last_value": 0.8812933564186096,
+        "points": 10
+      },
+      "eval/mean_err_deg": {
+        "first_step": 79200,
+        "first_value": 6.4387664794921875,
+        "last_step": 81900,
+        "last_value": 6.441800117492676,
+        "points": 10
+      },
+      "eval/range_hit_rate": {
+        "first_step": 79200,
+        "first_value": 0.6066733598709106,
+        "last_step": 81900,
+        "last_value": 0.6052600145339966,
+        "points": 10
+      }
+    },
+    "detect\\runs\\runs_舊backup\\gpu\\tb\\events.out.tfevents.1779622624.DESKTOP-NQ4O1S3.1512415.0": {
+      "train/loss": {
+        "first_step": 10001,
+        "first_value": 1.4804203510284424,
+        "last_step": 40000,
+        "last_value": 1.3435683250427246,
+        "points": 30000
+      },
+      "train/loss_azimuth": {
+        "first_step": 10001,
+        "first_value": 0.976301908493042,
+        "last_step": 40000,
+        "last_value": 0.811822772026062,
+        "points": 30000
+      },
+      "train/loss_range": {
+        "first_step": 10001,
+        "first_value": 0.5041185021400452,
+        "last_step": 40000,
+        "last_value": 0.5317456126213074,
+        "points": 30000
+      },
+      "eval/hit_rate": {
+        "first_step": 12000,
+        "first_value": 0.4723333418369293,
+        "last_step": 39000,
+        "last_value": 0.4703066647052765,
+        "points": 10
+      },
+      "eval/mean_err_deg": {
+        "first_step": 12000,
+        "first_value": 18.913999557495117,
+        "last_step": 39000,
+        "last_value": 18.798933029174805,
+        "points": 10
+      },
+      "eval/range_hit_rate": {
+        "first_step": 12000,
+        "first_value": 0.5229466557502747,
+        "last_step": 39000,
+        "last_value": 0.5247666835784912,
+        "points": 10
+      }
+    },
+    "detect\\runs\\runs_舊backup\\gpu\\tb\\events.out.tfevents.1779625418.DESKTOP-NQ4O1S3.1532614.0": {
+      "train/loss": {
+        "first_step": 40001,
+        "first_value": 4.2716779708862305,
+        "last_step": 43000,
+        "last_value": 1.931391716003418,
+        "points": 3000
+      },
+      "train/loss_azimuth": {
+        "first_step": 40001,
+        "first_value": 2.2925827503204346,
+        "last_step": 43000,
+        "last_value": 0.9840971231460571,
+        "points": 3000
+      },
+      "train/loss_range": {
+        "first_step": 40001,
+        "first_value": 1.9790949821472168,
+        "last_step": 43000,
+        "last_value": 0.9472945928573608,
+        "points": 3000
+      },
+      "eval/hit_rate": {
+        "first_step": 40200,
+        "first_value": 0.6084666848182678,
+        "last_step": 42900,
+        "last_value": 0.6664666533470154,
+        "points": 10
+      },
+      "eval/mean_err_deg": {
+        "first_step": 40200,
+        "first_value": 9.956366539001465,
+        "last_step": 42900,
+        "last_value": 7.9720001220703125,
+        "points": 10
+      },
+      "eval/range_hit_rate": {
+        "first_step": 40200,
+        "first_value": 0.5159599781036377,
+        "last_step": 42900,
+        "last_value": 0.5531333088874817,
+        "points": 10
+      }
+    },
+    "detect\\runs\\runs_舊backup\\gpu\\tb\\events.out.tfevents.1779626995.DESKTOP-NQ4O1S3.1541271.0": {
+      "train/loss": {
+        "first_step": 46001,
+        "first_value": 1.8634922504425049,
+        "last_step": 49000,
+        "last_value": 1.8154902458190918,
+        "points": 3000
+      },
+      "train/loss_azimuth": {
+        "first_step": 46001,
+        "first_value": 0.9362596273422241,
+        "last_step": 49000,
+        "last_value": 0.9061467051506042,
+        "points": 3000
+      },
+      "train/loss_range": {
+        "first_step": 46001,
+        "first_value": 0.927232563495636,
+        "last_step": 49000,
+        "last_value": 0.9093436002731323,
+        "points": 3000
+      },
+      "eval/hit_rate": {
+        "first_step": 46200,
+        "first_value": 0.8636999726295471,
+        "last_step": 48900,
+        "last_value": 0.8665533065795898,
+        "points": 10
+      },
+      "eval/mean_err_deg": {
+        "first_step": 46200,
+        "first_value": 7.569833278656006,
+        "last_step": 48900,
+        "last_value": 7.387499809265137,
+        "points": 10
+      },
+      "eval/range_hit_rate": {
+        "first_step": 46200,
+        "first_value": 0.564740002155304,
+        "last_step": 48900,
+        "last_value": 0.5707600116729736,
+        "points": 10
+      }
+    }
+  },
+  "sac": {
+    "runs\\sac_stage1_20260524_171206\\tb\\SAC_1\\events.out.tfevents.1779613945.DESKTOP-NQ4O1S3.1693195.0": {
+      "eval/mean_ep_length": {
+        "first_step": 9984,
+        "first_value": 500.0,
+        "last_step": 499200,
+        "last_value": 500.0,
+        "points": 50
+      },
+      "eval/mean_reward": {
+        "first_step": 9984,
+        "first_value": -228.4628448486328,
+        "last_step": 499200,
+        "last_value": -231.02230834960938,
+        "points": 50
+      },
+      "rollout/ep_len_mean": {
+        "first_step": 16000,
+        "first_value": 493.34375,
+        "last_step": 496000,
+        "last_value": 493.0199890136719,
+        "points": 248
+      },
+      "rollout/ep_rew_mean": {
+        "first_step": 16000,
+        "first_value": -231.71395874023438,
+        "last_step": 496000,
+        "last_value": -220.83663940429688,
+        "points": 248
+      },
+      "time/fps": {
+        "first_step": 16000,
+        "first_value": 556.0,
+        "last_step": 496000,
+        "last_value": 397.0,
+        "points": 248
+      },
+      "train/actor_loss": {
+        "first_step": 16000,
+        "first_value": -7.146422863006592,
+        "last_step": 499200,
+        "last_value": -0.8079926371574402,
+        "points": 123
+      },
+      "train/critic_loss": {
+        "first_step": 16000,
+        "first_value": 0.07346753776073456,
+        "last_step": 499200,
+        "last_value": 1.0381970405578613,
+        "points": 123
+      },
+      "train/ent_coef": {
+        "first_step": 16000,
+        "first_value": 0.9457006454467773,
+        "last_step": 499200,
+        "last_value": 0.01080567017197609,
+        "points": 123
+      },
+      "train/ent_coef_loss": {
+        "first_step": 16000,
+        "first_value": -0.4700891971588135,
+        "last_step": 499200,
+        "last_value": -32.40703582763672,
+        "points": 123
+      },
+      "train/learning_rate": {
+        "first_step": 16000,
+        "first_value": 0.0003000000142492354,
+        "last_step": 499200,
+        "last_value": 0.0003000000142492354,
+        "points": 123
+      }
+    },
+    "runs\\sac_stage1_20260524_233738\\tb\\SAC_1\\events.out.tfevents.1779637078.DESKTOP-NQ4O1S3.47095.0": {
+      "eval/mean_ep_length": {
+        "first_step": 9984,
+        "first_value": 500.0,
+        "last_step": 9984,
+        "last_value": 500.0,
+        "points": 1
+      },
+      "eval/mean_reward": {
+        "first_step": 9984,
+        "first_value": -228.1963653564453,
+        "last_step": 9984,
+        "last_value": -228.1963653564453,
+        "points": 1
+      }
+    },
+    "runs\\sac_stage1_20260524_163445\\tb\\SAC_1\\events.out.tfevents.1779611705.DESKTOP-NQ4O1S3.1980981.0": {
+      "eval/mean_ep_length": {
+        "first_step": 9984,
+        "first_value": 500.0,
+        "last_step": 109824,
+        "last_value": 500.0,
+        "points": 11
+      },
+      "eval/mean_reward": {
+        "first_step": 9984,
+        "first_value": -251.21629333496094,
+        "last_step": 109824,
+        "last_value": -218.1553497314453,
+        "points": 11
+      },
+      "rollout/ep_len_mean": {
+        "first_step": 16000,
+        "first_value": 493.34375,
+        "last_step": 112000,
+        "last_value": 500.0,
+        "points": 56
+      },
+      "rollout/ep_rew_mean": {
+        "first_step": 16000,
+        "first_value": -231.7144317626953,
+        "last_step": 112000,
+        "last_value": -248.79098510742188,
+        "points": 56
+      },
+      "time/fps": {
+        "first_step": 16000,
+        "first_value": 71.0,
+        "last_step": 112000,
+        "last_value": 60.0,
+        "points": 56
+      },
+      "train/actor_loss": {
+        "first_step": 16000,
+        "first_value": -7.159611701965332,
+        "last_step": 112000,
+        "last_value": -22.537322998046875,
+        "points": 17
+      },
+      "train/critic_loss": {
+        "first_step": 16000,
+        "first_value": 0.07226091623306274,
+        "last_step": 112000,
+        "last_value": 0.25967663526535034,
+        "points": 17
+      },
+      "train/ent_coef": {
+        "first_step": 16000,
+        "first_value": 0.9457029700279236,
+        "last_step": 112000,
+        "last_value": 0.3844697177410126,
+        "points": 17
+      },
+      "train/ent_coef_loss": {
+        "first_step": 16000,
+        "first_value": -0.4703708291053772,
+        "last_step": 112000,
+        "last_value": -8.034567832946777,
+        "points": 17
+      },
+      "train/learning_rate": {
+        "first_step": 16000,
+        "first_value": 0.0003000000142492354,
+        "last_step": 112000,
+        "last_value": 0.0003000000142492354,
+        "points": 17
+      }
+    }
+  }
+}

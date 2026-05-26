@@ -4,6 +4,7 @@
 輸出:
   - 方位 head:n_azimuth_bins 維 logits(必有)
   - 距離 head:n_range_bins 維 logits(可選,requirement §5)
+  - 高度 head:n_height_bins 維 logits(可選)
 
 設計原則(對齊先前討論):
   - 模型要小、可部署:目標 < 200k 參數
@@ -48,6 +49,7 @@ class LocalizationNet(nn.Module):
         n_bins: int,
         hidden: int = 128,
         n_range_bins: int | None = None,
+        n_height_bins: int | None = None,
     ) -> None:
         super().__init__()
         # 共用 backbone(原本 net 的前段,去掉最後的輸出層)
@@ -65,20 +67,27 @@ class LocalizationNet(nn.Module):
         self.has_range = bool(n_range_bins)
         if self.has_range:
             self.range_head = nn.Linear(hidden, int(n_range_bins))
+        self.has_height = bool(n_height_bins)
+        if self.has_height:
+            self.height_head = nn.Linear(hidden, int(n_height_bins))
 
     def forward(self, feat: torch.Tensor):
         """回傳 logits。
 
         無距離 head → azimuth_logits (B, n_bins)。
-        有距離 head → (azimuth_logits, range_logits)。
+        有距離/高度 head → tuple,順序為 azimuth, range?, height?。
         訓練用 CrossEntropy,推論用 argmax/softmax。
         """
         h = self.backbone(feat)
         azimuth_logits = self.azimuth_head(h)
+        outs = [azimuth_logits]
         if self.has_range:
-            range_logits = self.range_head(h)
-            return azimuth_logits, range_logits
-        return azimuth_logits
+            outs.append(self.range_head(h))
+        if self.has_height:
+            outs.append(self.height_head(h))
+        if len(outs) == 1:
+            return azimuth_logits
+        return tuple(outs)
 
     @torch.no_grad()
     def predict_azimuth(self, feat: torch.Tensor, n_bins: int) -> torch.Tensor:
@@ -93,11 +102,25 @@ class LocalizationNet(nn.Module):
         """回傳預測距離 bin(僅在有距離 head 時可用)。"""
         if not self.has_range:
             raise RuntimeError("此網路無距離 head,無法 predict_range_bin")
-        _, range_logits = self.forward(feat)
+        out = self.forward(feat)
+        range_logits = out[1]
         return torch.argmax(range_logits, dim=-1)
 
+    @torch.no_grad()
+    def predict_height_bin(self, feat: torch.Tensor) -> torch.Tensor:
+        """回傳預測高度 bin(僅在有高度 head 時可用)。"""
+        if not self.has_height:
+            raise RuntimeError("此網路無高度 head,無法 predict_height_bin")
+        out = self.forward(feat)
+        height_logits = out[-1]
+        return torch.argmax(height_logits, dim=-1)
 
-def build_net(cfg: LocalizationConfig, with_range: bool = False) -> LocalizationNet:
+
+def build_net(
+    cfg: LocalizationConfig,
+    with_range: bool = False,
+    with_height: bool = False,
+) -> LocalizationNet:
     """建立定位網路。
 
     Args:
@@ -107,8 +130,12 @@ def build_net(cfg: LocalizationConfig, with_range: bool = False) -> Localization
     """
     feat_dim = (cfg.audio.n_mics - 1) * 3
     n_range_bins = cfg.range_head.n_range_bins if with_range else None
+    n_height_bins = cfg.height_head.n_height_bins if with_height else None
     return LocalizationNet(
-        feat_dim, cfg.task.n_azimuth_bins, n_range_bins=n_range_bins)
+        feat_dim, cfg.task.n_azimuth_bins,
+        n_range_bins=n_range_bins,
+        n_height_bins=n_height_bins,
+    )
 
 
 def count_params(model: nn.Module) -> int:
@@ -130,22 +157,28 @@ if __name__ == "__main__":
     assert not net1.has_range
     assert count_params(net1) < 200_000
 
-    print("\n=== 雙 head(方位 + 距離)===")
-    net2 = build_net(cfg, with_range=True)
-    az, rg = net2(dummy)
+    print("\n=== 三 head(方位 + 距離 + 高度)===")
+    net2 = build_net(cfg, with_range=True, with_height=True)
+    az, rg, ht = net2(dummy)
     print(f"azimuth out  = {tuple(az.shape)}  (期望 (8, {cfg.task.n_azimuth_bins}))")
     print(f"range out    = {tuple(rg.shape)}  (期望 (8, {cfg.range_head.n_range_bins}))")
+    print(f"height out   = {tuple(ht.shape)}  (期望 (8, {cfg.height_head.n_height_bins}))")
     print(f"參數量       = {count_params(net2):,}  (預算 < 200,000)")
     assert net2.has_range
+    assert net2.has_height
     assert az.shape == (8, cfg.task.n_azimuth_bins)
     assert rg.shape == (8, cfg.range_head.n_range_bins)
+    assert ht.shape == (8, cfg.height_head.n_height_bins)
     assert count_params(net2) < 200_000, "超出參數預算!"
 
     # 驗證 state_dict key:perception.py 靠 'range' 字串偵測 has_range
     keys = list(net2.state_dict().keys())
     has_range_key = any("range" in k for k in keys)
+    has_height_key = any("height" in k for k in keys)
     print(f"\nstate_dict 含 'range' key = {has_range_key}  (perception 自動偵測依據)")
+    print(f"state_dict 含 'height' key = {has_height_key}")
     assert has_range_key, "距離 head 的 key 必須含 'range',否則 perception 偵測不到"
+    assert has_height_key, "高度 head 的 key 必須含 'height',否則 perception 偵測不到"
     # 單 head 不應有 range key
     assert not any("range" in k for k in net1.state_dict().keys())
     print(f"雙 head 比單 head 多 {count_params(net2)-count_params(net1)} 參數(距離 head)")

@@ -38,6 +38,7 @@ class BaseDobotEnv(gym.Env, ABC):
       base_to_tcp_dist: (1,)   末端到基座距離(純 FK,m)
       source_azimuth:   (72,)  聲學方位機率分布(softmax)
       source_range:     (4,)   聲學遠近機率分布(softmax),權重無距離 head 時自動不出現
+      source_height:    (5,)   聲學高度機率分布(softmax),權重無高度 head 時自動不出現
 
     Action(Box):
       正規化關節速度 + 夾爪命令,維度 5,範圍 [-1, 1]
@@ -51,7 +52,7 @@ class BaseDobotEnv(gym.Env, ABC):
     metadata = {"render_modes": ["human", "rgb_array"]}
 
     # obs 各 key 的上下界來源(機率分布項固定 [0,1])
-    _PROB_KEYS = ("source_azimuth", "source_range")
+    _PROB_KEYS = ("source_azimuth", "source_range", "source_height")
 
     def __init__(self, cfg: LocalizationConfig = DEFAULT) -> None:
         super().__init__()

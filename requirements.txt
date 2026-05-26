@@ -28,13 +28,38 @@ sounddevice
 numpy<2.0
 scipy
 pyyaml
+tqdm
+pandas
+
+# ---- 視覺化與資料檢查 ----
+matplotlib
+seaborn
+scikit-learn
 
 # ---- 訓練監控 ----
 tensorboard
 wandb
+
+# ---- Demo / 互動視覺化 ----
+pygame
+
+# ---- 音訊資料轉換與分析 ----
+librosa
+soundfile
+
+# ---- Word 報告與文件產生 ----
+python-docx
+
+# ---- 3D 資產處理 ----
+trimesh
 
 # ---- 運動規劃(MoveIt2 Python binding,Phase 1 訓練迴圈用)----
 # 註:moveit_py 透過 apt 安裝會更穩定:
 #   sudo apt install ros-humble-moveit-py
 # pip wheel 在 Humble 上可能不穩,優先用 apt
 # 此處不列入 pip 安裝清單,改在 setup_instructions.md 用 apt 處理
+
+# ---- Word 渲染檢查(非 pip 套件)----
+# 若要把 docx 渲染成 PNG/PDF 檢查版面,需另外安裝 LibreOffice:
+#   sudo apt install libreoffice
+# 或在 Windows 安裝 LibreOffice,讓 render_docx.py 找得到 soffice。
